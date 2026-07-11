@@ -102,6 +102,16 @@ export function auditPage(opts) {
   // Does this element hold text of its OWN (not just its children's)?
   const ownText = (el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 1);
 
+  // Is it inside something that scrolls sideways on purpose? Then it is not clipped;
+  // it is off-screen and reachable, which is what a horizontal scroller IS.
+  function inScroller(el) {
+    for (let n = el.parentElement; n && n.nodeType === 1 && n !== document.documentElement; n = n.parentElement) {
+      const o = getComputedStyle(n).overflowX;
+      if ((o === 'auto' || o === 'scroll') && n.scrollWidth > n.clientWidth + 1) return true;
+    }
+    return false;
+  }
+
   // ── 1. the page scrolls sideways ───────────────────────────────────────────
   // The single most common agent CSS bug, and invisible in any DOM assertion.
   const de = document.documentElement;
@@ -122,7 +132,12 @@ export function auditPage(opts) {
     // ── 2. clipped past the right edge ───────────────────────────────────────
     // Something you rendered and the user cannot reach. A button 39px off-screen
     // is a feature that does not exist.
-    if (r.right > W + 1 && r.width < W * 1.5 && r.left < W) {
+    //
+    // UNLESS it sits in something that scrolls sideways ON PURPOSE — a kanban, a
+    // carousel, a wide table. That content is off-screen and REACHABLE, which is
+    // the whole design. Flagging it made a correctly-built horizontal scroller look
+    // like five separate bugs, and taught the reader to skim past the real one.
+    if (r.right > W + 1 && r.width < W * 1.5 && r.left < W && !inScroller(el)) {
       const clip = Math.round(r.right - W);
       if (clip > 2) add('clipped', 'high', el, `extends ${clip}px past the right edge of the ${W}px viewport`,
         { rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] });
