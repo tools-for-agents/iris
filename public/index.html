@@ -20,27 +20,27 @@
   * { box-sizing:border-box; }
   body { margin:0; padding-bottom:44px; background:var(--bg); color:var(--txt); font:14px/1.6 system-ui,-apple-system,sans-serif; }
 
-  header { display:flex; align-items:center; gap:14px; padding:12px 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:10; }
-  .logo { display:flex; align-items:center; gap:9px; flex:none; }
-  .logo .g { font-size:19px; }
-  .logo b { font-family:var(--mono); font-size:15px; letter-spacing:.5px; }
+  header { display:flex; align-items:center; gap:16px; padding:12px 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:10; }
+  .logo { display:flex; align-items:center; gap:8px; flex:none; }
+  .logo .g { font-size:20px; }
+  .logo b { font-family:var(--mono); font-size:16px; letter-spacing:.5px; }
   .logo .tag { font-family:var(--mono); font-size:12px; color:var(--muted); }
 
   .bar { flex:1; min-width:0; display:flex; align-items:center; gap:8px; }
   .field { flex:1; min-width:0; display:flex; align-items:center; gap:8px; height:36px; padding:0 12px;
-           background:var(--panel-2); border:1px solid var(--line); border-radius:9px; }
+           background:var(--panel-2); border:1px solid var(--line); border-radius:8px; }
   .field:focus-within { border-color:var(--accent); }
-  .field input { flex:1; min-width:0; border:0; background:none; outline:none; color:var(--txt); font-family:var(--mono); font-size:13px; }
+  .field input { flex:1; min-width:0; border:0; background:none; outline:none; color:var(--txt); font-family:var(--mono); font-size:14px; }
   .field input::placeholder { color:var(--faint); }
-  .go { flex:none; height:36px; padding:0 14px; border-radius:9px; cursor:pointer; font-family:var(--mono); font-size:12px;
+  .go { flex:none; height:36px; padding:0 16px; border-radius:8px; cursor:pointer; font-family:var(--mono); font-size:12px;
         border:1px solid var(--accent); background:var(--accent); color:var(--bg); font-weight:600; }
   .go:hover { filter:brightness(1.1); }
   .go.ghost { background:transparent; color:var(--accent); }
   .go[disabled] { opacity:.5; cursor:default; }
-  .theme-btn { flex:none; width:34px; height:34px; border-radius:9px; cursor:pointer; border:1px solid var(--line); background:var(--panel-2); color:var(--muted); font-size:14px; }
+  .theme-btn { flex:none; width:34px; height:34px; border-radius:8px; cursor:pointer; border:1px solid var(--line); background:var(--panel-2); color:var(--muted); font-size:14px; }
 
   main { display:grid; grid-template-columns:270px 1fr; min-height:calc(100vh - 61px); }
-  aside { border-right:1px solid var(--line); background:var(--panel); padding:14px; overflow-y:auto; }
+  aside { border-right:1px solid var(--line); background:var(--panel); padding:16px; overflow-y:auto; }
   /* iris told me this page scrolled sideways by 202px on a phone: a 270px rail plus
      300px-minimum cards cannot fit 390px. It was right, so the rail stacks. */
   @media (max-width: 720px) {
@@ -52,55 +52,60 @@
     .bar { order:3; width:100%; }
     .sheet { grid-template-columns:1fr; }
   }
-  .side-h { font-family:var(--mono); font-size:12px; letter-spacing:1.2px; text-transform:uppercase; color:var(--faint); margin:0 0 10px; }
-  .run { display:flex; gap:9px; align-items:flex-start; padding:9px 10px; border-radius:9px; cursor:pointer; border:1px solid transparent; margin-bottom:5px; }
+  .side-h { font-family:var(--mono); font-size:12px; letter-spacing:1.2px; text-transform:uppercase; color:var(--faint); margin:0 0 12px; }
+  .run { display:flex; gap:8px; align-items:flex-start; padding:8px 12px; border-radius:8px; cursor:pointer; border:1px solid transparent; margin-bottom:4px; }
   .run:hover { background:var(--panel-2); }
   .run.on { background:var(--panel-2); border-color:var(--line-2); }
-  .run .v { flex:none; font-size:13px; line-height:1.4; }
+  .run .v { flex:none; font-size:14px; line-height:1.4; }
   .run .v.ok { color:var(--ok); } .run .v.bad { color:var(--bad); }
   .run .t { min-width:0; }
   .run .nm { font-family:var(--mono); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .run .sub { font-family:var(--mono); font-size:12px; color:var(--faint); }
 
-  section { padding:20px 22px; min-width:0; }
-  .empty { color:var(--muted); font-size:13px; max-width:560px; line-height:1.7; }
-  .empty code { font-family:var(--mono); font-size:12px; background:var(--panel-2); padding:1px 6px; border-radius:5px; color:var(--accent); }
+  section { padding:20px 24px; min-width:0; }
+  .empty { color:var(--muted); font-size:14px; max-width:560px; line-height:1.7; }
+  .empty code { font-family:var(--mono); font-size:12px; background:var(--panel-2); padding:1px 8px; border-radius:8px; color:var(--accent); }
 
-  .verdict { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:11px 14px; border-radius:11px; margin-bottom:16px;
+  .verdict { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:12px 16px; border-radius:12px; margin-bottom:16px;
              font-family:var(--mono); font-size:12px; border:1px solid var(--line); background:var(--panel); }
   .verdict.pass { border-color:color-mix(in srgb, var(--ok) 45%, transparent); background:color-mix(in srgb, var(--ok) 8%, transparent); }
   .verdict.fail { border-color:color-mix(in srgb, var(--bad) 45%, transparent); background:color-mix(in srgb, var(--bad) 8%, transparent); }
-  .verdict .big { font-size:13px; font-weight:600; }
+  .verdict .big { font-size:14px; font-weight:600; }
   .verdict .pass-t { color:var(--ok); } .verdict .fail-t { color:var(--bad); }
-  .verdict .sp { margin-left:auto; display:flex; flex-wrap:wrap; gap:7px; }
-  .pill { font-family:var(--mono); font-size:12px; padding:2px 8px; border-radius:20px; border:1px solid var(--line-2); color:var(--muted); }
+  .verdict .sp { margin-left:auto; display:flex; flex-wrap:wrap; gap:8px; }
+  .pill { font-family:var(--mono); font-size:12px; padding:2px 8px; border-radius:999px; border:1px solid var(--line-2); color:var(--muted); }
   .pill.high { color:var(--bad); border-color:color-mix(in srgb, var(--bad) 50%, transparent); }
   .pill.medium { color:var(--warn); border-color:color-mix(in srgb, var(--warn) 50%, transparent); }
 
   /* the contact sheet — every render, side by side. this IS the tool. */
-  .sheet { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr)); gap:16px; margin-bottom:22px; }
-  .shot { border:1px solid var(--line); border-radius:11px; overflow:hidden; background:var(--panel); }
-  .shot .h { display:flex; align-items:center; gap:7px; padding:7px 11px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12px; color:var(--muted); }
+  .sheet { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr)); gap:16px; margin-bottom:24px; }
+  .shot { border:1px solid var(--line); border-radius:12px; overflow:hidden; background:var(--panel); }
+  .shot .h { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12px; color:var(--muted); }
   .shot .h b { color:var(--txt); }
   .shot .h .n { margin-left:auto; }
   .shot .h .n.bad { color:var(--bad); } .shot .h .n.ok { color:var(--ok); }
   .shot img { display:block; width:100%; height:auto; background:#fff; cursor:zoom-in; }
   :root[data-theme="light"] .shot img { background:#fff; }
 
-  .vio { border:1px solid var(--line); border-radius:11px; overflow:hidden; }
-  .vio-h { padding:9px 13px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12px; letter-spacing:1.2px; text-transform:uppercase; color:var(--faint); background:var(--panel); }
-  .v-row { display:flex; gap:11px; padding:11px 13px; border-bottom:1px solid var(--line); background:var(--panel); }
+  .vio { border:1px solid var(--line); border-radius:12px; overflow:hidden; }
+  .vio-h { padding:8px 12px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12px; letter-spacing:1.2px; text-transform:uppercase; color:var(--faint); background:var(--panel); }
+  .v-row { display:flex; gap:12px; padding:12px 12px; border-bottom:1px solid var(--line); background:var(--panel); }
   .v-row:last-child { border-bottom:0; }
-  .v-sev { flex:none; font-family:var(--mono); font-size:11px; padding:2px 7px; border-radius:5px; height:fit-content; letter-spacing:.5px;
+  .v-sev { flex:none; font-family:var(--mono); font-size:12px; padding:2px 8px; border-radius:8px; height:fit-content; letter-spacing:.5px;
            border:1px solid var(--line-2); color:var(--muted); }
   .v-sev.high { color:var(--bad); border-color:color-mix(in srgb, var(--bad) 50%, transparent); background:color-mix(in srgb, var(--bad) 10%, transparent); }
   .v-sev.medium { color:var(--warn); border-color:color-mix(in srgb, var(--warn) 50%, transparent); }
+  .v-sev.design { color:var(--accent); border-color:color-mix(in srgb, var(--accent) 50%, transparent); }
+  .sc-row { display:flex; gap:8px; align-items:baseline; margin-bottom:4px; font-family:var(--mono); font-size:12px; }
+  .sc-l { flex:none; width:64px; color:var(--faint); }
+  .sc-v { display:flex; flex-wrap:wrap; gap:4px; }
+  .sc-v i { font-style:normal; padding:2px 8px; border-radius:8px; background:var(--panel-2); border:1px solid var(--line); color:var(--muted); }
   .v-b { min-width:0; flex:1; }
   .v-rule { font-family:var(--mono); font-size:12px; color:var(--accent); }
   .v-sel { font-family:var(--mono); font-size:12px; color:var(--faint); word-break:break-all; }
-  .v-txt { font-size:12.5px; color:var(--txt); margin-top:3px; }
+  .v-txt { font-size:12px; color:var(--txt); margin-top:4px; }
   .v-det { font-size:12px; color:var(--muted); margin-top:2px; }
-  .v-at { font-family:var(--mono); font-size:12px; color:var(--faint); margin-top:3px; }
+  .v-at { font-family:var(--mono); font-size:12px; color:var(--faint); margin-top:4px; }
   .swatch { display:inline-block; width:9px; height:9px; border-radius:2px; border:1px solid var(--line-2); vertical-align:middle; margin:0 2px; }
 
   .lightbox { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:50; padding:24px; cursor:zoom-out; }
@@ -109,15 +114,15 @@
 
   .spin { display:inline-block; width:11px; height:11px; border:2px solid var(--line-2); border-top-color:var(--accent); border-radius:50%; animation:s .7s linear infinite; }
   @keyframes s { to { transform:rotate(360deg); } }
-  .err { color:var(--bad); font-family:var(--mono); font-size:12px; padding:11px 13px; border:1px solid color-mix(in srgb, var(--bad) 40%, transparent);
-         border-radius:9px; background:color-mix(in srgb, var(--bad) 8%, transparent); margin-bottom:14px; }
+  .err { color:var(--bad); font-family:var(--mono); font-size:12px; padding:12px 12px; border:1px solid color-mix(in srgb, var(--bad) 40%, transparent);
+         border-radius:8px; background:color-mix(in srgb, var(--bad) 8%, transparent); margin-bottom:16px; }
 </style>
 
 <header>
   <div class="logo"><span class="g">👁</span><div><b>iris</b> <span class="tag">the agent's eye</span></div></div>
   <div class="bar">
     <div class="field">
-      <span style="color:var(--faint);font-size:13px">▸</span>
+      <span style="color:var(--faint);font-size:14px">▸</span>
       <input id="t" placeholder="a URL, or a path to an .html file you just wrote…" autocomplete="off" spellcheck="false" />
     </div>
     <button class="go" id="look">look</button>
@@ -232,7 +237,31 @@ function show(r) {
           ${x.n != null ? `<span class="n ${x.n ? 'bad' : 'ok'}">${x.n ? x.n + ' issue' + (x.n === 1 ? '' : 's') : 'clean'}</span>` : ''}</div>
         <img loading="lazy" src="/api/shot?id=${encodeURIComponent(r.id)}&file=${encodeURIComponent(x.file)}" alt="${esc(x.label)}" />
       </div>`).join('')}</div>
-    ${violationsHtml(r)}`;
+    ${violationsHtml(r)}
+    ${designHtml(r)}`;
+}
+
+// Taste, kept visually separate from defects — "this is broken" and "nobody decided
+// this" are different conversations, and mixing them teaches you to skim both.
+function designHtml(r) {
+  const D = r.design?.findings || [];
+  const sc = r.design?.scales;
+  if (!D.length && !sc) return '';
+  const scaleRow = (label, items, unit) => !items?.length ? '' :
+    `<div class="sc-row"><span class="sc-l">${label}</span><span class="sc-v">${items.slice(0, 14)
+      .map((x) => `<i title="used ${x.count}x">${esc(x.value)}${unit || ''}</i>`).join('')}</span></div>`;
+  return `<div class="vio" style="margin-top:16px">
+    <div class="vio-h">${D.length ? 'nothing is broken here, but nobody decided it either' : 'the scales you actually built'}</div>
+    ${D.map((d) => `<div class="v-row">
+      <span class="v-sev design">design</span>
+      <div class="v-b"><div class="v-rule">${esc(d.rule)}</div><div class="v-det">${esc(d.detail)}</div></div>
+    </div>`).join('')}
+    ${sc ? `<div class="v-row"><div class="v-b">
+      ${scaleRow('type', sc.type, 'px')}
+      ${scaleRow('radius', sc.radius, 'px')}
+      ${scaleRow('spacing', sc.spacing, 'px')}
+    </div></div>` : ''}
+  </div>`;
 }
 
 // One row per defect — collapsed across viewports, because the same bug at three
@@ -296,12 +325,12 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#lb').classList.
      readable foreground. -->
 <style>
   .xtk { position:fixed; bottom:0; left:0; right:0; display:flex; flex-wrap:wrap; gap:2px 8px; justify-content:center;
-         align-items:center; padding:3px 8px; font-family:var(--mono); font-size:12px;
+         align-items:center; padding:4px 8px; font-family:var(--mono); font-size:12px;
          background:var(--panel); border-top:1px solid var(--line); }
-  .xtk .l { color:var(--muted); padding:6px 0; }
-  .xtk a, .xtk .cur { display:inline-flex; align-items:center; min-height:24px; padding:4px 8px; border-radius:6px;
+  .xtk .l { color:var(--muted); padding:8px 0; }
+  .xtk a, .xtk .cur { display:inline-flex; align-items:center; min-height:24px; padding:4px 8px; border-radius:8px;
                       text-decoration:none; color:var(--muted); }
-  .xtk a::before, .xtk .cur::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--x); margin-right:6px; }
+  .xtk a::before, .xtk .cur::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--x); margin-right:8px; }
   .xtk a:hover { background:var(--panel-2); color:var(--txt); }
   .xtk .cur { color:var(--txt); font-weight:700; }
 </style>

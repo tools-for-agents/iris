@@ -35,6 +35,25 @@ And for games, where a screenshot is actively misleading:
 
 **A dead game looks flawless in a still.** One that draws one perfect frame and then never draws again is indistinguishable from a working one until you watch it move. `iris play` watches it move.
 
+## The other half: taste, measured
+
+A page can be **entirely un-broken and still look like nobody designed it.** That is what people actually mean by "AI slop", and it is not a mystery of taste — it is a failure of *decision*. A designer picks a type scale, a spacing grid, a palette, one corner radius, and everything obeys. An agent, writing CSS a rule at a time with no memory of what it chose ten lines ago, produces eleven font sizes and seven corner radii it never chose.
+
+That is perfectly measurable. `iris look` also reports:
+
+| | |
+|---|---|
+| **type-scale** | *"8 distinct font sizes — 13, 14, 15, 16, 17, 19, 21, 27px. A scale is 6 or fewer; the rest are sizes nobody chose."* |
+| **spacing-grid** | *"35 of 35 spacing values are off the 4px grid — 9px×6, 5px×5, 7px×5, 11px×5. Nothing here was decided; these are nudges."* |
+| **radius-scale** | *"7 distinct corner radii. Real design systems have two or three."* |
+| **twin-colours** | *"rgb(85,90,94) and rgb(88,93,97) — indistinguishable. Two colours nobody can tell apart are one colour and a maintenance cost."* |
+
+These **do not fail the build**. Taste is a conversation, not a gate. They tell you where the design is drifting.
+
+The test fixture for this is a page that is *perfectly fine* — it renders, it fits, it is readable, `✓ nothing broken` — and every number in it is different. Then iris says so.
+
+And it said so about **itself**: `161 of 221 spacing values off the grid`, seven corner radii, seven font sizes. iris now sits on a 4px grid, a 3-step radius scale (8 / 12 / pill) and a 4-step type scale (12 / 14 / 16 / 20) — because its own eye told it not to.
+
 ## For the agent (MCP)
 
 `iris_look` returns **the actual images** alongside the report, so the model sees its own output.

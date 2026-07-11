@@ -236,3 +236,119 @@ export function readFrames() {
     canvases,
   };
 }
+
+// ── Taste, measured ──────────────────────────────────────────────────────────
+// A page can be entirely un-broken and still look like nobody designed it. What
+// separates designed work from generated work is not correctness, it is DECISION:
+// a designer picks a type scale, a spacing grid, a palette, one radius — and then
+// everything obeys it. An agent, writing CSS a rule at a time with no memory of
+// what it chose ten lines ago, produces 11 font sizes and 7 corner radii it never
+// decided on. That is what "AI slop" actually looks like up close, and unlike taste
+// it is perfectly measurable: count the decisions, and see how many were accidents.
+//
+// These are NOT defects. They do not fail a build. They tell you where the design
+// is drifting.
+export function critiquePage(opts) {
+  const { grid = 4, maxType = 6, maxRadius = 4, maxInk = 8 } = opts || {};
+  const F = [];
+  const px = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.round(n * 10) / 10 : null; };
+  const bump = (m, k, el) => { if (k == null) return; const e = m.get(k) || { n: 0, eg: [] };
+    e.n++; if (e.eg.length < 3 && el) e.eg.push(el); m.set(k, e); };
+  const sortNum = (m) => [...m.entries()].sort((a, b) => a[0] - b[0]);
+  const top = (m, k = 4) => [...m.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, k);
+
+  const fonts = new Map(), radii = new Map(), spaces = new Map(), inks = new Map(), weights = new Map();
+  const els = [...document.body.querySelectorAll('*')].slice(0, 3000);
+  for (const el of els) {
+    const r = el.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) continue;
+    const s = getComputedStyle(el);
+    if (s.display === 'none' || s.visibility === 'hidden') continue;
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'svg' || tag === 'path' || tag === 'img' || tag === 'canvas') continue;
+
+    const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim());
+    if (hasText) {
+      bump(fonts, px(s.fontSize), el);
+      bump(inks, s.color, el);
+      bump(weights, s.fontWeight, el);
+    }
+    // Only radii that are actually drawn — a radius on a thing with no edge is invisible.
+    if (s.backgroundColor !== 'rgba(0, 0, 0, 0)' || s.borderTopWidth !== '0px') {
+      const rad = px(s.borderTopLeftRadius);
+      if (rad) bump(radii, rad, el);
+    }
+    for (const p of ['paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight',
+      'marginTop', 'marginBottom', 'gap', 'columnGap', 'rowGap']) {
+      const v = px(s[p]);
+      if (v && v >= 3 && v <= 96) bump(spaces, v, el);   // <3px is a hairline, >96 is a layout gesture
+    }
+  }
+
+  // ── the type scale ─────────────────────────────────────────────────────────
+  // Count EVERY distinct size, not only the ones used twice. A page with eleven
+  // sizes each used once is not "eleven outliers" — it is eleven sizes.
+  const usedFonts = sortNum(fonts);
+  if (usedFonts.length > maxType) {
+    F.push({ rule: 'type-scale', severity: 'design',
+      detail: `${usedFonts.length} distinct font sizes in use — ${usedFonts.map(([k]) => k + 'px').join(', ')}. `
+        + `A type scale is ${maxType} sizes or fewer; the rest are sizes nobody chose. Pick a scale and round everything to it.`,
+      values: usedFonts.map(([k, v]) => ({ value: k, count: v.n })) });
+  }
+
+  // ── the spacing grid ───────────────────────────────────────────────────────
+  // A 4px grid is not a rule of taste, it is what makes spacing look intentional
+  // rather than nudged. 9px next to 11px next to 13px reads as noise even when you
+  // cannot name why.
+  const off = sortNum(spaces).filter(([k]) => k % grid !== 0);
+  const offTotal = off.reduce((a, [, v]) => a + v.n, 0);
+  const all = [...spaces.values()].reduce((a, v) => a + v.n, 0);
+  if (off.length && all && offTotal / all > 0.15) {
+    F.push({ rule: 'spacing-grid', severity: 'design',
+      detail: `${offTotal} of ${all} spacing values are off the ${grid}px grid — ${top(new Map(off), 6).map(([k, v]) => `${k}px×${v.n}`).join(', ')}. `
+        + `Nothing here was decided; these are nudges. Snap them to multiples of ${grid}.`,
+      values: off.map(([k, v]) => ({ value: k, count: v.n })) });
+  }
+
+  // ── one corner, not seven ──────────────────────────────────────────────────
+  const usedRadii = sortNum(radii);
+  if (usedRadii.length > maxRadius) {
+    F.push({ rule: 'radius-scale', severity: 'design',
+      detail: `${usedRadii.length} distinct corner radii — ${usedRadii.map(([k]) => k + 'px').join(', ')}. `
+        + `Real design systems have two or three (a small one, a large one, and a pill). The rest is drift.`,
+      values: usedRadii.map(([k, v]) => ({ value: k, count: v.n })) });
+  }
+
+  // ── the palette, and the greys you cannot tell apart ───────────────────────
+  const parseC = (c) => { const m = String(c).match(/rgba?\(([^)]+)\)/); if (!m) return null;
+    const p = m[1].split(/[,\s/]+/).filter(Boolean).map(Number); return { r: p[0], g: p[1], b: p[2] }; };
+  const inkList = [...inks.keys()].map((c) => ({ css: c, rgb: parseC(c), n: inks.get(c).n })).filter((x) => x.rgb);
+  if (inkList.length > maxInk) {
+    F.push({ rule: 'palette-sprawl', severity: 'design',
+      detail: `${inkList.length} distinct text colours. A palette is a few semantic roles (body, muted, faint, accent, danger) — `
+        + `past that you are not choosing colours, you are accumulating them.`,
+      values: inkList.sort((a, b) => b.n - a.n).slice(0, 12).map((x) => ({ value: x.css, count: x.n })) });
+  }
+  // Two colours a person cannot distinguish are one colour with extra maintenance.
+  const twins = [];
+  for (let i = 0; i < inkList.length; i++) {
+    for (let j = i + 1; j < inkList.length; j++) {
+      const a = inkList[i].rgb, b = inkList[j].rgb;
+      const d = Math.abs(a.r - b.r) + Math.abs(a.g - b.g) + Math.abs(a.b - b.b);
+      if (d > 0 && d <= 24) twins.push({ a: inkList[i].css, b: inkList[j].css, d });
+    }
+  }
+  if (twins.length) {
+    F.push({ rule: 'twin-colours', severity: 'design',
+      detail: twins.slice(0, 4).map((t) => `${t.a} and ${t.b}`).join('; ')
+        + ` — indistinguishable to the eye. Two colours nobody can tell apart are one colour and a maintenance cost.`,
+      values: twins.slice(0, 8).map((t) => ({ value: `${t.a} ≈ ${t.b}`, count: t.d })) });
+  }
+
+  return { findings: F, scales: {
+    type: sortNum(fonts).map(([k, v]) => ({ value: k, count: v.n })),
+    radius: sortNum(radii).map(([k, v]) => ({ value: k, count: v.n })),
+    spacing: sortNum(spaces).map(([k, v]) => ({ value: k, count: v.n })),
+    weights: [...weights.keys()].sort(),
+  } };
+}

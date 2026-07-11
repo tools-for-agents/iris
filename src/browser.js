@@ -235,6 +235,22 @@ export async function open({ chrome = findChrome(), attach = process.env.IRIS_CD
       + '(or point IRIS_CDP at an already-running browser started with --remote-debugging-port).');
   }
 
+  // Launching a browser is not reliable enough to do once. Under load Chrome will
+  // occasionally print "DevTools listening on ws://…" and then die on its own
+  // allocator before it ever answers HTTP — the port opens and closes faster than
+  // we can poll it. A tool that spawns a browser on every single call cannot treat
+  // that as fatal, so: try again, on a fresh port, once.
+  try {
+    return await launch(chrome);
+  } catch (e) {
+    await sleep(600);
+    try { return await launch(chrome); }
+    catch (again) { throw new Error(`${again.message}\n  (this was the second attempt; the first failed too)`); }
+  }
+}
+
+async function launch(chrome) {
+
   const port = await freePort();
   const profile = mkdtempSync(join(tmpdir(), 'iris-profile-'));
   const args = [
@@ -265,8 +281,12 @@ export async function open({ chrome = findChrome(), attach = process.env.IRIS_CD
   } catch (e) {
     try { proc.kill('SIGKILL'); } catch {}
     try { rmSync(profile, { recursive: true, force: true }); } catch {}
-    const why = stderr.trim().split('\n').filter(Boolean).slice(-3).join(' | ');
-    throw new Error(e.message + (why ? `\n  chrome said: ${why}` : '\n  chrome said nothing at all'));
+    // Chrome shouts about GCM registration and voice transcription on every start.
+    // Handing THAT back as "what went wrong" is a new way of hiding the real line.
+    const noise = /registration_request|gcm|voice_transcription|device_event_log|Failed to send GpuControl/i;
+    const why = stderr.trim().split('\n').map((l) => l.trim())
+      .filter((l) => l && !noise.test(l)).slice(-3).join(' | ');
+    throw new Error(e.message + (why ? `\n  chrome said: ${why}` : '\n  chrome said nothing useful — is another instance stuck? try: pkill -f remote-debugging-port'));
   }
 
   return {

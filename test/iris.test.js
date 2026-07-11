@@ -99,3 +99,31 @@ test('runs are remembered, readable, and can be forgotten', needsChrome, async (
 test('a bad viewport or theme name fails loudly instead of silently rendering the default', () => {
   assert.throws(() => iris.toUrl('./does-not-exist.html'), /no such page/);
 });
+
+// The other half of the problem. Everything above asks "is it broken". This asks
+// "did anyone DESIGN it" — because a page can be entirely un-broken and still look
+// like a machine wrote it, and that is what the user actually complains about.
+test('a page that works perfectly and was designed by nobody is called out for it', needsChrome, async () => {
+  const run = await iris.look(fixture('sloppy.html'), { viewports: 'desktop', themes: 'light' });
+
+  // Nothing is WRONG with it. That is the entire point of the fixture.
+  assert.equal(run.summary.passed, true, 'sloppy.html is not broken — it renders, it fits, it is readable');
+
+  const d = Object.fromEntries((run.design.findings || []).map((f) => [f.rule, f]));
+  assert.ok(d['type-scale'], 'eight font sizes is not a scale, it is an accumulation');
+  assert.match(d['type-scale'].detail, /8 distinct font sizes/);
+  assert.ok(d['spacing-grid'], '9px next to 11px next to 13px is nudging, not deciding');
+  assert.ok(d['radius-scale'], 'seven corner radii');
+  assert.ok(d['twin-colours'], 'four greys a person cannot tell apart are one grey and a maintenance cost');
+
+  // Design findings must NOT fail the build — taste is a conversation, not a gate.
+  assert.equal(run.summary.high, 0);
+});
+
+test('a page on a scale is left alone — the critique is not a lint that fires on everything', needsChrome, async () => {
+  const run = await iris.look(fixture('clean.html'), { viewports: 'desktop', themes: 'light' });
+  assert.deepEqual(run.design.findings, [],
+    `a page on a grid with one radius and a real type scale must draw no comment, got: ${JSON.stringify(run.design.findings)}`);
+  // and it still reports the scales it measured, so you can see what you actually built
+  assert.ok(run.design.scales.type.length >= 1);
+});

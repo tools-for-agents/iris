@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { join, resolve, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { open, findChrome } from './browser.js';
-import { auditPage, instrumentFrames, readFrames } from './audit.js';
+import { auditPage, critiquePage, instrumentFrames, readFrames } from './audit.js';
 
 export const OUT = () => process.env.IRIS_OUT || './.iris';
 
@@ -56,6 +56,7 @@ export async function look(target, opts = {}) {
 
   const session = await open();
   const shots = [];
+  let design = null;
   try {
     for (const vp of viewports) {
       for (const theme of themes) {
@@ -68,6 +69,11 @@ export async function look(target, opts = {}) {
         writeFileSync(join(dir, file), png);
         const a = opts.audit === false ? null
           : await session.page.evaluate(auditPage, { ...cfg, mobile: VIEWPORTS[vp].mobile });
+        // Taste is a property of the design, not of the window it is shown in — so
+        // measure the scales once, on the widest render, rather than six times.
+        if (opts.critique !== false && !design && vp === viewports[viewports.length - 1]) {
+          design = await session.page.evaluate(critiquePage, { grid: +opts.grid || 4 });
+        }
         shots.push({
           viewport: vp, theme, file, path: join(dir, file), bytes: png.length,
           violations: a ? a.violations : [], counts: a ? a.counts : {},
@@ -77,7 +83,7 @@ export async function look(target, opts = {}) {
     }
   } finally { await session.close(); }
 
-  const run = summarise({ id: runId, kind: 'look', target, url, dir, shots });
+  const run = summarise({ id: runId, kind: 'look', target, url, dir, shots, design });
   writeFileSync(join(dir, 'run.json'), JSON.stringify(run, null, 2));
   return run;
 }
@@ -240,6 +246,16 @@ export function report(run, { limit = 25 } = {}) {
     if (seen.size > limit) L.push(`  … and ${seen.size - limit} more (raise --limit)`);
   }
   for (const e of run.console_errors.slice(0, 5)) L.push(`  [console] ${e.level}: ${String(e.text).split('\n')[0].slice(0, 140)}`);
+
+  // Taste, kept separate on purpose. A page can be entirely un-broken and still
+  // look like nobody designed it — and that is a different conversation from "this
+  // is broken", so it gets a different heading and it does not fail the build.
+  const D = run.design?.findings || [];
+  if (D.length) {
+    L.push('');
+    L.push('  ── nothing is broken here, but nobody decided it either ──');
+    for (const d of D) L.push(`  · ${d.rule} — ${d.detail}`);
+  }
   L.push('');
   L.push(`  images: ${run.dir}`);
   return L.join('\n');
