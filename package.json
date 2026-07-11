@@ -1,0 +1,10 @@
+{
+  "name": "iris-agent",
+  "version": "0.1.0",
+  "description": "The agent's eye: render what you built at real viewports and themes, and measure what a glance would catch — overflow, clipping, contrast, unreadable type, collisions, dead game loops. Zero dependencies.",
+  "type": "module",
+  "bin": { "iris": "src/cli.js" },
+  "engines": { "node": ">=22" },
+  "scripts": { "serve": "node src/cli.js serve", "mcp": "node mcp/mcp-server.js", "test": "node --test" },
+  "license": "MIT"
+}

@@ -1,0 +1,13 @@
+<!doctype html>
+<!-- A game that renders one beautiful frame and then does nothing. It looks
+     perfect in a screenshot. It is not a game. -->
+<html><head><meta charset="utf-8"><title>dead game</title>
+<style>body{margin:0;background:#0b0e14}canvas{display:block}</style></head>
+<body><canvas id="c" width="640" height="360"></canvas>
+<script>
+  const ctx = document.getElementById('c').getContext('2d');
+  ctx.fillStyle = '#1a1f2e'; ctx.fillRect(0, 0, 640, 360);
+  ctx.fillStyle = '#4fd6be'; ctx.fillRect(60, 150, 40, 40);
+  // no requestAnimationFrame, no input handler. one frame, forever.
+</script>
+</body></html>

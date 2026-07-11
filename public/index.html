@@ -1,0 +1,317 @@
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>iris — the agent's eye</title>
+<style>
+  :root {
+    --bg:#0b0e14; --panel:#11151d; --panel-2:#161b26; --line:#1e2530; --line-2:#2a3340;
+    --txt:#e6edf3; --muted:#9fb0bf; --faint:#8593a1; --accent:#c792ea; --ok:#4fd6be; --bad:#ff6b6b; --warn:#f5a623;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+  }
+  :root[data-theme="light"] {
+    --bg:#f7f8fa; --panel:#ffffff; --panel-2:#f0f2f5; --line:#e2e6ea; --line-2:#cfd6dd;
+    --txt:#12161b; --muted:#4a5560; --faint:#5c6773; --accent:#6d28d9; --ok:#046c60; --bad:#c62a1e; --warn:#96430a;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg:#f7f8fa; --panel:#ffffff; --panel-2:#f0f2f5; --line:#e2e6ea; --line-2:#cfd6dd;
+      --txt:#12161b; --muted:#4a5560; --faint:#5c6773; --accent:#6d28d9; --ok:#046c60; --bad:#c62a1e; --warn:#96430a;
+    }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; padding-bottom:44px; background:var(--bg); color:var(--txt); font:14px/1.6 system-ui,-apple-system,sans-serif; }
+
+  header { display:flex; align-items:center; gap:14px; padding:12px 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:10; }
+  .logo { display:flex; align-items:center; gap:9px; flex:none; }
+  .logo .g { font-size:19px; }
+  .logo b { font-family:var(--mono); font-size:15px; letter-spacing:.5px; }
+  .logo .tag { font-family:var(--mono); font-size:12px; color:var(--muted); }
+
+  .bar { flex:1; min-width:0; display:flex; align-items:center; gap:8px; }
+  .field { flex:1; min-width:0; display:flex; align-items:center; gap:8px; height:36px; padding:0 12px;
+           background:var(--panel-2); border:1px solid var(--line); border-radius:9px; }
+  .field:focus-within { border-color:var(--accent); }
+  .field input { flex:1; min-width:0; border:0; background:none; outline:none; color:var(--txt); font-family:var(--mono); font-size:13px; }
+  .field input::placeholder { color:var(--faint); }
+  .go { flex:none; height:36px; padding:0 14px; border-radius:9px; cursor:pointer; font-family:var(--mono); font-size:12px;
+        border:1px solid var(--accent); background:var(--accent); color:var(--bg); font-weight:600; }
+  .go:hover { filter:brightness(1.1); }
+  .go.ghost { background:transparent; color:var(--accent); }
+  .go[disabled] { opacity:.5; cursor:default; }
+  .theme-btn { flex:none; width:34px; height:34px; border-radius:9px; cursor:pointer; border:1px solid var(--line); background:var(--panel-2); color:var(--muted); font-size:14px; }
+
+  main { display:grid; grid-template-columns:270px 1fr; min-height:calc(100vh - 61px); }
+  aside { border-right:1px solid var(--line); background:var(--panel); padding:14px; overflow-y:auto; }
+  /* iris told me this page scrolled sideways by 202px on a phone: a 270px rail plus
+     300px-minimum cards cannot fit 390px. It was right, so the rail stacks. */
+  @media (max-width: 720px) {
+    main { grid-template-columns:1fr; }
+    .logo .tag { display:none; }
+    .verdict .sp { margin-left:0; }
+    aside { border-right:0; border-bottom:1px solid var(--line); }
+    header { flex-wrap:wrap; }
+    .bar { order:3; width:100%; }
+    .sheet { grid-template-columns:1fr; }
+  }
+  .side-h { font-family:var(--mono); font-size:12px; letter-spacing:1.2px; text-transform:uppercase; color:var(--faint); margin:0 0 10px; }
+  .run { display:flex; gap:9px; align-items:flex-start; padding:9px 10px; border-radius:9px; cursor:pointer; border:1px solid transparent; margin-bottom:5px; }
+  .run:hover { background:var(--panel-2); }
+  .run.on { background:var(--panel-2); border-color:var(--line-2); }
+  .run .v { flex:none; font-size:13px; line-height:1.4; }
+  .run .v.ok { color:var(--ok); } .run .v.bad { color:var(--bad); }
+  .run .t { min-width:0; }
+  .run .nm { font-family:var(--mono); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .run .sub { font-family:var(--mono); font-size:12px; color:var(--faint); }
+
+  section { padding:20px 22px; min-width:0; }
+  .empty { color:var(--muted); font-size:13px; max-width:560px; line-height:1.7; }
+  .empty code { font-family:var(--mono); font-size:12px; background:var(--panel-2); padding:1px 6px; border-radius:5px; color:var(--accent); }
+
+  .verdict { display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:11px 14px; border-radius:11px; margin-bottom:16px;
+             font-family:var(--mono); font-size:12px; border:1px solid var(--line); background:var(--panel); }
+  .verdict.pass { border-color:color-mix(in srgb, var(--ok) 45%, transparent); background:color-mix(in srgb, var(--ok) 8%, transparent); }
+  .verdict.fail { border-color:color-mix(in srgb, var(--bad) 45%, transparent); background:color-mix(in srgb, var(--bad) 8%, transparent); }
+  .verdict .big { font-size:13px; font-weight:600; }
+  .verdict .pass-t { color:var(--ok); } .verdict .fail-t { color:var(--bad); }
+  .verdict .sp { margin-left:auto; display:flex; flex-wrap:wrap; gap:7px; }
+  .pill { font-family:var(--mono); font-size:12px; padding:2px 8px; border-radius:20px; border:1px solid var(--line-2); color:var(--muted); }
+  .pill.high { color:var(--bad); border-color:color-mix(in srgb, var(--bad) 50%, transparent); }
+  .pill.medium { color:var(--warn); border-color:color-mix(in srgb, var(--warn) 50%, transparent); }
+
+  /* the contact sheet — every render, side by side. this IS the tool. */
+  .sheet { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(300px,100%),1fr)); gap:16px; margin-bottom:22px; }
+  .shot { border:1px solid var(--line); border-radius:11px; overflow:hidden; background:var(--panel); }
+  .shot .h { display:flex; align-items:center; gap:7px; padding:7px 11px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12px; color:var(--muted); }
+  .shot .h b { color:var(--txt); }
+  .shot .h .n { margin-left:auto; }
+  .shot .h .n.bad { color:var(--bad); } .shot .h .n.ok { color:var(--ok); }
+  .shot img { display:block; width:100%; height:auto; background:#fff; cursor:zoom-in; }
+  :root[data-theme="light"] .shot img { background:#fff; }
+
+  .vio { border:1px solid var(--line); border-radius:11px; overflow:hidden; }
+  .vio-h { padding:9px 13px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12px; letter-spacing:1.2px; text-transform:uppercase; color:var(--faint); background:var(--panel); }
+  .v-row { display:flex; gap:11px; padding:11px 13px; border-bottom:1px solid var(--line); background:var(--panel); }
+  .v-row:last-child { border-bottom:0; }
+  .v-sev { flex:none; font-family:var(--mono); font-size:11px; padding:2px 7px; border-radius:5px; height:fit-content; letter-spacing:.5px;
+           border:1px solid var(--line-2); color:var(--muted); }
+  .v-sev.high { color:var(--bad); border-color:color-mix(in srgb, var(--bad) 50%, transparent); background:color-mix(in srgb, var(--bad) 10%, transparent); }
+  .v-sev.medium { color:var(--warn); border-color:color-mix(in srgb, var(--warn) 50%, transparent); }
+  .v-b { min-width:0; flex:1; }
+  .v-rule { font-family:var(--mono); font-size:12px; color:var(--accent); }
+  .v-sel { font-family:var(--mono); font-size:12px; color:var(--faint); word-break:break-all; }
+  .v-txt { font-size:12.5px; color:var(--txt); margin-top:3px; }
+  .v-det { font-size:12px; color:var(--muted); margin-top:2px; }
+  .v-at { font-family:var(--mono); font-size:12px; color:var(--faint); margin-top:3px; }
+  .swatch { display:inline-block; width:9px; height:9px; border-radius:2px; border:1px solid var(--line-2); vertical-align:middle; margin:0 2px; }
+
+  .lightbox { position:fixed; inset:0; background:rgba(0,0,0,.85); display:none; align-items:center; justify-content:center; z-index:50; padding:24px; cursor:zoom-out; }
+  .lightbox.show { display:flex; }
+  .lightbox img { max-width:100%; max-height:100%; border-radius:8px; }
+
+  .spin { display:inline-block; width:11px; height:11px; border:2px solid var(--line-2); border-top-color:var(--accent); border-radius:50%; animation:s .7s linear infinite; }
+  @keyframes s { to { transform:rotate(360deg); } }
+  .err { color:var(--bad); font-family:var(--mono); font-size:12px; padding:11px 13px; border:1px solid color-mix(in srgb, var(--bad) 40%, transparent);
+         border-radius:9px; background:color-mix(in srgb, var(--bad) 8%, transparent); margin-bottom:14px; }
+</style>
+
+<header>
+  <div class="logo"><span class="g">👁</span><div><b>iris</b> <span class="tag">the agent's eye</span></div></div>
+  <div class="bar">
+    <div class="field">
+      <span style="color:var(--faint);font-size:13px">▸</span>
+      <input id="t" placeholder="a URL, or a path to an .html file you just wrote…" autocomplete="off" spellcheck="false" />
+    </div>
+    <button class="go" id="look">look</button>
+    <button class="go ghost" id="play">play ▸</button>
+  </div>
+  <button class="theme-btn" id="theme" title="Toggle light / dark" aria-label="Toggle theme">◐</button>
+</header>
+
+<main>
+  <aside>
+    <p class="side-h" id="sideH">what the eye has seen</p>
+    <div id="runs"></div>
+  </aside>
+  <section id="view"></section>
+</main>
+
+<div class="lightbox" id="lb"><img id="lbi" alt="" /></div>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const api = (p, o) => fetch(p, o).then((r) => r.json());
+let RUNS = [], CUR = null;
+
+// ── theme ────────────────────────────────────────────────────────────────────
+const TK = 'iris:theme';
+try { const t = localStorage.getItem(TK); if (t) document.documentElement.dataset.theme = t; } catch {}
+$('#theme').addEventListener('click', () => {
+  const cur = document.documentElement.dataset.theme
+    || (matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+  const next = cur === 'dark' ? 'light' : 'dark';
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem(TK, next); } catch {}
+});
+
+// ── the run list ─────────────────────────────────────────────────────────────
+async function loadRuns(select) {
+  RUNS = await api('/api/runs');
+  $('#runs').innerHTML = RUNS.length ? RUNS.map((r) => {
+    const ok = r.summary?.passed;
+    return `<div class="run ${CUR && CUR.id === r.id ? 'on' : ''}" data-id="${esc(r.id)}">
+      <span class="v ${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'}</span>
+      <div class="t">
+        <div class="nm">${esc(r.target)}</div>
+        <div class="sub">${r.kind === 'play' ? '🎮 play' : '👁 look'} · ${ok ? 'clean' : `${r.summary?.high || 0}h ${r.summary?.medium || 0}m`}</div>
+      </div>
+    </div>`;
+  }).join('') : `<div style="color:var(--faint);font-size:12px">nothing yet</div>`;
+  if (select) show(select);
+}
+$('#runs').addEventListener('click', (e) => {
+  const el = e.target.closest('[data-id]'); if (!el) return;
+  const r = RUNS.find((x) => x.id === el.dataset.id);
+  if (r) show(r);
+});
+
+// ── looking ──────────────────────────────────────────────────────────────────
+async function run(kind) {
+  const target = $('#t').value.trim();
+  if (!target) { $('#t').focus(); return; }
+  for (const b of ['#look', '#play']) $(b).disabled = true;
+  $('#view').innerHTML = `<div class="empty"><span class="spin"></span> opening a browser and looking at <b>${esc(target)}</b>…</div>`;
+  try {
+    const body = kind === 'play'
+      ? { target, seconds: 3, keys: 'ArrowLeft,ArrowRight,ArrowUp,ArrowDown,Space' }
+      : { target, viewports: 'phone,tablet,desktop', themes: 'dark,light' };
+    const r = await api('/api/' + kind, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.error) { $('#view').innerHTML = `<div class="err">${esc(r.error)}</div>`; return; }
+    CUR = r;
+    await loadRuns(r);
+  } catch (e) {
+    $('#view').innerHTML = `<div class="err">${esc(e.message || e)}</div>`;
+  } finally {
+    for (const b of ['#look', '#play']) $(b).disabled = false;
+  }
+}
+$('#look').addEventListener('click', () => run('look'));
+$('#play').addEventListener('click', () => run('play'));
+$('#t').addEventListener('keydown', (e) => { if (e.key === 'Enter') run('look'); });
+
+// ── the contact sheet ────────────────────────────────────────────────────────
+function show(r) {
+  CUR = r;
+  document.querySelectorAll('.run').forEach((el) => el.classList.toggle('on', el.dataset.id === r.id));
+  const s = r.summary || {};
+  const shots = r.kind === 'play'
+    ? (r.frames || []).map((f, i) => ({ file: f.file, label: `frame ${i}`, theme: '', n: null }))
+    : (r.shots || []).map((x) => ({ file: x.file, label: x.viewport, theme: x.theme, n: (x.violations || []).length }));
+
+  const metrics = r.kind === 'play' && r.metrics?.instrumented
+    ? `<span class="pill">${r.metrics.fps} fps</span>
+       <span class="pill">${r.unique_frames}/${(r.frames || []).length} distinct frames</span>
+       <span class="pill">worst hitch ${r.metrics.worst_hitch_ms}ms</span>
+       ${r.input ? `<span class="pill ${r.input.changed ? '' : 'high'}">input ${r.input.changed ? 'registered' : 'IGNORED'}</span>` : ''}`
+    : `<span class="pill">${(r.shots || []).length} renders</span>`;
+
+  $('#view').innerHTML = `
+    <div class="verdict ${s.passed ? 'pass' : 'fail'}">
+      <span class="big ${s.passed ? 'pass-t' : 'fail-t'}">${s.passed ? '✓ nothing broken' : '✗ ' + (s.high || 0) + ' to fix'}</span>
+      <span style="color:var(--muted)">${esc(r.target)}</span>
+      <span class="sp">
+        ${metrics}
+        ${s.high ? `<span class="pill high">${s.high} high</span>` : ''}
+        ${s.medium ? `<span class="pill medium">${s.medium} medium</span>` : ''}
+        ${s.low ? `<span class="pill">${s.low} low</span>` : ''}
+        ${s.console_errors ? `<span class="pill high">${s.console_errors} console</span>` : ''}
+      </span>
+    </div>
+    <div class="sheet">${shots.map((x) => `
+      <div class="shot">
+        <div class="h"><b>${esc(x.label)}</b>${x.theme ? `<span>${esc(x.theme)}</span>` : ''}
+          ${x.n != null ? `<span class="n ${x.n ? 'bad' : 'ok'}">${x.n ? x.n + ' issue' + (x.n === 1 ? '' : 's') : 'clean'}</span>` : ''}</div>
+        <img loading="lazy" src="/api/shot?id=${encodeURIComponent(r.id)}&file=${encodeURIComponent(x.file)}" alt="${esc(x.label)}" />
+      </div>`).join('')}</div>
+    ${violationsHtml(r)}`;
+}
+
+// One row per defect — collapsed across viewports, because the same bug at three
+// widths is one bug, and listing it three times buries the other two.
+function violationsHtml(r) {
+  const order = { high: 0, medium: 1, low: 2 };
+  const seen = new Map();
+  for (const v of [...(r.violations || [])].sort((a, b) => order[a.severity] - order[b.severity])) {
+    const key = v.rule + '|' + v.selector;
+    if (!seen.has(key)) seen.set(key, { ...v, where: [] });
+    seen.get(key).where.push(`${v.viewport || ''}${v.theme ? '/' + v.theme : ''}`.replace(/^\//, ''));
+  }
+  const rows = [...seen.values()];
+  const cons = (r.console_errors || []).slice(0, 6);
+  if (!rows.length && !cons.length) return '';
+  return `<div class="vio"><div class="vio-h">what a glance would have caught</div>
+    ${rows.map((v) => `<div class="v-row">
+      <span class="v-sev ${v.severity}">${v.severity}</span>
+      <div class="v-b">
+        <div><span class="v-rule">${esc(v.rule)}</span> <span class="v-sel">${esc(v.selector)}</span></div>
+        ${v.text ? `<div class="v-txt">“${esc(v.text)}”</div>` : ''}
+        <div class="v-det">${esc(v.detail)}${v.fg ? ` <span class="swatch" style="background:${esc(v.fg)}"></span>on<span class="swatch" style="background:${esc(v.bg)}"></span>` : ''}</div>
+        ${v.where.filter(Boolean).length ? `<div class="v-at">at ${esc([...new Set(v.where)].join(', '))}</div>` : ''}
+      </div></div>`).join('')}
+    ${cons.map((c) => `<div class="v-row">
+      <span class="v-sev high">${esc(c.level)}</span>
+      <div class="v-b"><div class="v-rule">console</div><div class="v-det">${esc(String(c.text).split('\n')[0].slice(0, 200))}</div></div>
+    </div>`).join('')}
+  </div>`;
+}
+
+// ── lightbox ─────────────────────────────────────────────────────────────────
+document.addEventListener('click', (e) => {
+  const img = e.target.closest('.shot img');
+  if (img) { $('#lbi').src = img.src; $('#lb').classList.add('show'); return; }
+  if (e.target.closest('#lb')) $('#lb').classList.remove('show');
+});
+addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#lb').classList.remove('show'); });
+
+// ── boot ─────────────────────────────────────────────────────────────────────
+(async () => {
+  const st = await api('/api/stats');
+  $('#view').innerHTML = `<div class="empty">
+    <p><b>Point it at something you just built.</b> iris opens a real browser, renders the page at phone, tablet and desktop
+    widths in <i>both</i> themes, and measures what a glance would catch — the page scrolling sideways, a button clipped off
+    the edge, grey-on-grey you cannot read, 9px type, text printing over text, a console full of exceptions.</p>
+    <p><b>For a game, press <code>play ▸</code></b> instead. A screenshot cannot tell you a game is dead: one that draws a
+    perfect frame and then never draws again looks flawless in a still. iris watches it move, counts the frames, and presses
+    the keys to see whether it answers.</p>
+    <p style="color:var(--faint)">browser: <code>${esc(st.chrome || 'NOT FOUND — set IRIS_CHROME')}</code></p>
+  </div>`;
+  await loadRuns();
+  if (RUNS.length) show(RUNS[0]);
+})();
+</script>
+
+<!-- The sibling strip. iris flagged this at 2.27:1 in light theme (the link colours
+     were picked for a dark ground and never checked against a light one) and at
+     67x16px (a tap target you have to aim at). Both were real; both are fixed here:
+     each tool keeps its known colour as a DOT, while the label takes the page's own
+     readable foreground. -->
+<style>
+  .xtk { position:fixed; bottom:0; left:0; right:0; display:flex; flex-wrap:wrap; gap:2px 8px; justify-content:center;
+         align-items:center; padding:3px 8px; font-family:var(--mono); font-size:12px;
+         background:var(--panel); border-top:1px solid var(--line); }
+  .xtk .l { color:var(--muted); padding:6px 0; }
+  .xtk a, .xtk .cur { display:inline-flex; align-items:center; min-height:24px; padding:4px 8px; border-radius:6px;
+                      text-decoration:none; color:var(--muted); }
+  .xtk a::before, .xtk .cur::before { content:''; width:7px; height:7px; border-radius:50%; background:var(--x); margin-right:6px; }
+  .xtk a:hover { background:var(--panel-2); color:var(--txt); }
+  .xtk .cur { color:var(--txt); font-weight:700; }
+</style>
+<div class="xtk" aria-label="tools-for-agents sibling web views">
+  <span class="l">tools-for-agents</span>
+  <a href="http://localhost:7700/" style="--x:#6ea8fe">agent-hq</a>
+  <a href="http://localhost:7900/" style="--x:#4fd6be">lens</a>
+  <a href="http://localhost:7930/" style="--x:#ff6a1a">anvil</a>
+  <a href="http://localhost:7800/" style="--x:#a78bfa">cortex</a>
+  <a href="http://localhost:7950/" style="--x:#f5a623">scout</a>
+  <a href="http://localhost:7980/" style="--x:#ff7ab6">recall</a>
+  <span class="cur" style="--x:var(--accent)">iris</span>
+</div>

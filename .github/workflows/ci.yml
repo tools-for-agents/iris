@@ -1,0 +1,20 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      # iris drives a real browser — the whole point is that it LOOKS. A CI that
+      # skipped the browser would test everything except the thing that matters.
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
+      - run: node --test
+        env:
+          IRIS_CHROME: ${{ steps.chrome.outputs.chrome-path }}
