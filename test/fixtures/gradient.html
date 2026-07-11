@@ -1,0 +1,16 @@
+<!doctype html>
+<!-- The `background` shorthand RESETS background-color to transparent. So a page
+     whose body is a gradient reports NO background colour anywhere in the chain —
+     and a contrast checker that only reads background-color measures this page's
+     perfectly readable light-grey text against WHITE, and fails all of it.
+     Every pixel here is dark. Every word is legible. iris must say nothing. -->
+<html><head><meta charset="utf-8"><title>gradient</title>
+<style>
+  body { margin:0; min-height:100vh; color:#e6ebf5; font:16px/1.6 system-ui,sans-serif; padding:32px;
+         background: radial-gradient(1200px 600px at 80% -10%, #16213a 0%, #0b0e14 55%) fixed; }
+  p.muted { color:#8a96ad; font-size:16px; }   /* 5.7:1 on this ground. 3:1 on the white that isn't there. */
+</style></head>
+<body>
+  <h1>Dark, and entirely readable</h1>
+  <p class="muted">This grey is 5.7:1 against the gradient behind it. Measured against a white background that does not exist, it would fail.</p>
+</body></html>

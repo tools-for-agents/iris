@@ -154,3 +154,15 @@ test('a page the server answered with 404 is refused too — that is its error p
     await assert.rejects(() => iris.look(url, { viewports: 'desktop', themes: 'dark' }), /HTTP 404/);
   } finally { srv.close(); }
 });
+
+// The `background` shorthand resets background-color to transparent, so a page whose
+// body is a gradient reports NO background colour anywhere — and a checker that reads
+// only background-color measures its light-grey text against WHITE. That turned a
+// dark, perfectly readable app into a dozen contrast "failures". Contrast must be
+// judged against what is actually PAINTED.
+test('text on a gradient is judged against the gradient, not against a white page that is not there', needsChrome, async () => {
+  const run = await iris.look(fixture('gradient.html'), { viewports: 'desktop', themes: 'dark' });
+  assert.deepEqual(rule(run, 'contrast'), [],
+    `every pixel of this page is dark and every word legible; got: ${JSON.stringify(rule(run, 'contrast'))}`);
+  assert.equal(run.summary.passed, true);
+});

@@ -53,16 +53,41 @@ export function auditPage(opts) {
   // Reading `background-color` off the element itself reports `transparent` for
   // almost every text node, which is how contrast checkers end up comparing text
   // against nothing and passing everything.
+  //
+  // And it must see GRADIENTS. The `background` shorthand resets background-color to
+  // transparent, so a page whose body is `background: radial-gradient(...)` reports NO
+  // background colour anywhere in the chain — and every piece of its light-grey text
+  // got measured against WHITE. A dark, perfectly readable page produced a dozen
+  // contrast "failures" that way. If the backdrop genuinely cannot be known (a photo
+  // behind the text), say so and decline to judge, rather than inventing white.
+  function bgOf(n) {
+    const s = getComputedStyle(n);
+    const c = parse(s.backgroundColor);
+    if (c && c.a > 0) return c;
+    const img = s.backgroundImage;
+    if (img && img !== 'none') {
+      const stops = [...img.matchAll(/rgba?\([^)]+\)/g)].map((m) => parse(m[0])).filter((x) => x && x.a > 0);
+      if (stops.length) {   // a gradient: average its stops — close enough to judge text against
+        const k = stops.length;
+        const sum = stops.reduce((a, x) => ({ r: a.r + x.r, g: a.g + x.g, b: a.b + x.b }), { r: 0, g: 0, b: 0 });
+        return { r: sum.r / k, g: sum.g / k, b: sum.b / k, a: 1 };
+      }
+      if (/url\(/.test(img)) return { unknown: true };   // a photo. Nobody can compute this; do not pretend.
+    }
+    return null;
+  }
   function backdrop(el) {
     let acc = null;
     for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
-      const c = parse(getComputedStyle(n).backgroundColor);
-      if (!c || c.a === 0) continue;
+      const c = bgOf(n);
+      if (!c) continue;
+      if (c.unknown) return { unknown: true };
       acc = acc ? over(acc, c) : c;
       if (acc.a >= 0.999) return acc;
     }
-    const c = parse(getComputedStyle(document.body).backgroundColor);
+    const c = bgOf(document.body) || bgOf(document.documentElement);
     const white = { r: 255, g: 255, b: 255, a: 1 };
+    if (c && c.unknown) return { unknown: true };
     if (acc && c && c.a > 0) return over(acc, c);
     return acc ? over(acc, white) : (c && c.a > 0 ? c : white);
   }
@@ -118,8 +143,9 @@ export function auditPage(opts) {
 
     // ── 5. contrast ──────────────────────────────────────────────────────────
     const fg = parse(st.color);
-    if (fg && fg.a > 0.05) {
-      const bg = backdrop(el);
+    const bgc = fg && fg.a > 0.05 ? backdrop(el) : null;
+    if (fg && fg.a > 0.05 && bgc && !bgc.unknown) {
+      const bg = bgc;
       const eff = fg.a < 1 ? over(fg, bg) : fg;
       const cr = ratio(eff, bg);
       const bold = +st.fontWeight >= 700;
