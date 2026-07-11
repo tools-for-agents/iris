@@ -18,3 +18,24 @@ jobs:
       - run: node --test
         env:
           IRIS_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+
+  # And iris looks at iris. Every tool in this kit shipped a broken phone layout
+  # past a green test suite, because a test suite does not look at the page.
+  # This is the gate that would have caught it — and it is the same gate the other
+  # six now use, via `uses: tools-for-agents/iris@main`.
+  look:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Serve it
+        run: |
+          node src/cli.js serve &
+          for i in $(seq 30); do curl -sf http://localhost:7990/api/health >/dev/null && break; sleep 1; done
+      - uses: ./
+        with:
+          url: http://localhost:7990/
+          viewports: phone,tablet,desktop
+          name: iris-web

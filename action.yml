@@ -1,0 +1,65 @@
+# iris as a CI gate.
+#
+# Every tool in this kit shipped a broken phone layout past a green test suite,
+# because a test suite does not look at the page. This makes looking part of the
+# build: render the thing at real viewports in both themes, and fail if a control
+# hangs off the edge, if text is unreadable, if the page throws.
+#
+#   - uses: tools-for-agents/iris@main
+#     with:
+#       url: http://localhost:7800/
+#
+# On failure it uploads the screenshots, so the CI log is not a paragraph about a
+# page you cannot see — it hands you the page.
+name: 'iris — look at it'
+description: "Render a page at real viewports and themes, and fail the build if it's broken."
+
+inputs:
+  url:
+    description: 'The page to look at (a URL, or a path to an .html file in the repo).'
+    required: true
+  viewports:
+    description: 'phone, tablet, desktop — comma separated.'
+    default: 'phone,desktop'
+  themes:
+    description: 'dark, light — comma separated.'
+    default: 'dark,light'
+  name:
+    description: 'Label for the uploaded screenshots.'
+    default: 'iris'
+  strict:
+    description: 'Also fail on design drift (type scale, spacing grid, palette). Off by default — taste is a conversation, not a gate.'
+    default: 'false'
+
+runs:
+  using: composite
+  steps:
+    - name: Find a browser
+      id: chrome
+      uses: browser-actions/setup-chrome@v1
+
+    - name: Look
+      id: look
+      shell: bash
+      env:
+        IRIS_CHROME: ${{ steps.chrome.outputs.chrome-path }}
+        IRIS_OUT: ${{ runner.temp }}/iris-${{ inputs.name }}
+      run: |
+        node "${{ github.action_path }}/src/cli.js" look "${{ inputs.url }}" \
+          --viewports "${{ inputs.viewports }}" --themes "${{ inputs.themes }}" | tee "$RUNNER_TEMP/iris.txt"
+        code=${PIPESTATUS[0]}
+        # The report is the useful artefact, so put it in the job summary where a
+        # human will actually read it — not buried in a fold of the log.
+        { echo '### 👁 iris'; echo '```'; cat "$RUNNER_TEMP/iris.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+        if [ "${{ inputs.strict }}" = "true" ] && grep -q 'nobody decided it either' "$RUNNER_TEMP/iris.txt"; then
+          echo "::error::design drift (strict mode)"; code=1
+        fi
+        exit $code
+
+    - name: Hand over the pictures
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: iris-${{ inputs.name }}
+        path: ${{ runner.temp }}/iris-${{ inputs.name }}
+        if-no-files-found: warn
