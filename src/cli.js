@@ -28,7 +28,13 @@ try {
     out(flags['--json'] ? run : iris.report(run, { limit: flags['--limit'] ? +flags['--limit'] : 25 }));
     // A non-zero exit is what lets `iris look` sit in a loop or a pre-commit hook
     // and actually STOP something. A checker that always exits 0 is decoration.
-    if (!run.summary.passed) process.exit(1);
+    //
+    // exitCode, NOT process.exit(): exit() tears the process down without flushing
+    // a pending write to a PIPE, so `iris look --json | jq` lost the tail of its own
+    // report — and only when the page was broken, because that is when the JSON is
+    // big enough to still be draining. A checker that truncates its findings exactly
+    // when it has findings is worse than one that never runs.
+    if (!run.summary.passed) process.exitCode = 1;
   } else if (cmd === 'play') {
     if (!target) throw new Error('usage: iris play <url|file> [--keys ArrowLeft,Space]');
     const run = await iris.play(target, {
@@ -36,7 +42,7 @@ try {
       viewport: flags['--viewports'], theme: flags['--themes'],
     });
     out(flags['--json'] ? run : iris.report(run));
-    if (!run.summary.passed) process.exit(1);
+    if (!run.summary.passed) process.exitCode = 1;
   } else if (cmd === 'runs') {
     const list = iris.runs({ limit: +(flags['-k'] || flags['--limit'] || 20) });
     if (flags['--json']) out(list);

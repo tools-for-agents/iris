@@ -127,3 +127,30 @@ test('a page on a scale is left alone — the critique is not a lint that fires 
   // and it still reports the scales it measured, so you can see what you actually built
   assert.ok(run.design.scales.type.length >= 1);
 });
+
+// The worst thing an eye can do is report confidently on a page it never saw. A
+// failed navigation still renders — Chrome's own error page — and still fires
+// `load`, so iris used to screenshot THAT, audit it, and hand back a tidy verdict.
+// It once told me six different apps had identical defects, because it was looking
+// at the same error page six times. Refusing to look is the honest answer.
+test('a page that never loaded is refused, not audited', needsChrome, async () => {
+  await assert.rejects(
+    () => iris.look('http://127.0.0.1:1/', { viewports: 'desktop', themes: 'dark' }),
+    /could not load/,
+    'a connection that is refused must throw, not produce a clean report about Chrome’s error page');
+});
+
+test('a page the server answered with 404 is refused too — that is its error page, not yours', needsChrome, async () => {
+  const { createServer } = await import('node:http');
+  const srv = createServer((req, res) => {
+    res.writeHead(404, { 'Content-Type': 'text/html' });
+    res.end('<!doctype html><title>gone</title><body><h1>404</h1><p>Not found.</p></body>');
+  });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${srv.address().port}/missing`;
+  try {
+    // This page is perfectly well-formed: it renders, it fits, it is readable. It
+    // would audit CLEAN — which is exactly why the status has to be checked.
+    await assert.rejects(() => iris.look(url, { viewports: 'desktop', themes: 'dark' }), /HTTP 404/);
+  } finally { srv.close(); }
+});

@@ -78,6 +78,24 @@ It also found three bugs in *itself*, which is the part worth reading:
 
 And while writing the fixture that *proves* iris works, I gave the "clean" page white text on a light-blue button: **2.42:1**. iris caught it. In the page written to demonstrate the tool, I made exactly the mistake the tool exists to catch — because I hadn't looked.
 
+## What happened when it looked at the rest of the kit
+
+Six sibling tools, each built carefully, each "verified" with hand-written CDP scripts, each shipped with a green test suite. Then the eye looked at them:
+
+| | defects | design drift |
+|---|---|---|
+| **agent-hq** | 13 high · 9 medium | type · spacing · radius · palette · twins |
+| **cortex** | 7 high · 7 medium | type · spacing · radius · palette |
+| **lens** | 6 high · 17 medium | type · spacing · radius · palette |
+| **anvil** | 3 high · 14 medium | type · spacing · palette |
+| **scout** | 9 high · 17 medium | type · spacing · radius · palette |
+| **recall** | 8 high · 15 medium | type · spacing · radius · palette · twins |
+| **iris** | — | clean |
+
+Every one of them scrolls sideways on a phone, or hides text at 2:1 contrast, or clips a control off the edge. I wrote all of them. I checked every one for console exceptions and asserted on the DOM. **Not one of them had ever been looked at.**
+
+iris is clean for exactly one reason: it is the only one the eye has seen.
+
 ## Notes
 
 - Finds Chrome/Chromium/Edge/Brave automatically. `IRIS_CHROME=/path/to/binary` to override, or `IRIS_CDP=9222` to attach to a browser you already have open and watch it work.

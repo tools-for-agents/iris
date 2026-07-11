@@ -76,6 +76,13 @@ class Page {
     else if (m.method === 'Network.loadingFinished' || m.method === 'Network.loadingFailed') {
       this.inflight = Math.max(0, this.inflight - 1);
     }
+    // The main document's HTTP status. A 404 page still renders, still fires `load`,
+    // and still audits clean — so "iris says your page is fine" would be a report
+    // about your error page. Keep the status and let the caller refuse it.
+    if (m.method === 'Network.responseReceived' && m.params.type === 'Document'
+        && m.params.frameId && !this.status) {
+      this.status = m.params.response.status;
+    }
     // A page that throws is a page that is broken, whatever it looks like. We
     // collect these unconditionally — a screenshot that looks fine while the
     // console is on fire is the exact failure iris exists to catch.
@@ -157,7 +164,16 @@ class Page {
   async goto(url, { waitMs = 250, quietMs = 400, timeoutMs = 10000 } = {}) {
     const load = this.once('Page.loadEventFired', timeoutMs);
     this.inflight = 0;
-    await this.send('Page.navigate', { url });
+    this.status = null;
+    const nav = await this.send('Page.navigate', { url });
+    // A failed navigation still renders a page — Chrome's OWN error page — and it
+    // still fires `load`. Without this check iris screenshotted "This site can't be
+    // reached", audited it, and reported a tidy verdict about a site it never saw.
+    // It once told me six different apps had identical defects, because it was
+    // looking at the same error page six times. Refusing to look is the honest
+    // answer; a clean report on a page that never loaded is the worst lie it could
+    // tell.
+    if (nav.errorText) throw new Error(`could not load ${url} — ${nav.errorText}`);
     await load;
     await this.networkIdle({ quietMs, timeoutMs: 6000 });
     try { await this.evaluate(() => document.fonts?.ready); } catch { /* no font API */ }
@@ -170,6 +186,11 @@ class Page {
       ]));
     } catch { /* no decode() */ }
     await sleep(waitMs);   // let the last transition land, or every screenshot is mid-fade
+    if (this.status && this.status >= 400) {
+      throw new Error(`${url} returned HTTP ${this.status} — that is the server's error page, not your page. `
+        + `Auditing it would tell you nothing about the page you meant.`);
+    }
+    return { status: this.status };
   }
 
   // Quiet = no request in flight for `quietMs`. Capped, because a page holding a
