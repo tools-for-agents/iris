@@ -33,7 +33,28 @@ And for games, where a screenshot is actively misleading:
 | **input-ignored** | pressed the keys, not a pixel changed. The game is not listening |
 | **low-fps / hitch** | below 30fps, or a frame gap you can feel |
 
+| **unreadable** | it reads the **canvas pixels**: nothing on screen reaches 3:1 against the background. The game draws, and you cannot see it |
+| **canvas-blur** | a 400×250 canvas drawn at 800×500 doubles every pixel. The most common thing wrong with a hand-written game, and a screenshot just looks *slightly soft* |
+| **input-ignored** | each key pressed **on its own** — because one working key covers for every dead one |
+
 **A dead game looks flawless in a still.** One that draws one perfect frame and then never draws again is indistinguishable from a working one until you watch it move. `iris play` watches it move.
+
+**And it knows what pixels cannot tell it.** A game that animates on its own changes pixels whether or not your keypress did anything — so "input registered" there is a confident answer to a question it cannot answer. iris says `input unproven (the picture moves on its own)` instead. Declining is not a failure; guessing is.
+
+### What it found in a real game
+
+A dodger written the way an agent writes one — it runs at 120fps, the frames differ, the arrows move the player. Everything iris knew how to check passed: **`✓ nothing broken`**. Then it learned to read the canvas:
+
+```
+[high]   unreadable  — nothing on the canvas reaches 3:1 against rgb(11, 14, 20);
+                       the most visible shape is 1.94:1. The game draws, and you cannot see it.
+[medium] canvas-blur — the canvas is 400x250 but drawn at 800x500 CSS px — every pixel
+                       is stretched 2x.
+[low]    input-unproven — this game animates on its own, so a changed frame does not prove
+                       a key did anything. Test the keys yourself.
+```
+
+The player and the obstacles were both tasteful dark greys on a dark ground — you could not tell which one *was* you, and the HUD promised a "space to dash" that did not exist.
 
 ## The other half: taste, measured
 

@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { join, resolve, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { open, findChrome } from './browser.js';
-import { auditPage, critiquePage, instrumentFrames, readFrames } from './audit.js';
+import { auditPage, critiquePage, canvasHealth, instrumentFrames, readFrames } from './audit.js';
 
 export const OUT = () => process.env.IRIS_OUT || './.iris';
 
@@ -102,7 +102,7 @@ export async function play(target, opts = {}) {
   const session = await open();
   const page = session.page;
   const frames = [];
-  let metrics = null, inputEffect = null;
+  let metrics = null, inputEffect = null, canvases = [];
   try {
     await page.viewport(vp);
     await page.theme(opts.theme || 'dark');
@@ -121,23 +121,76 @@ export async function play(target, opts = {}) {
       frames.push({ i, file, path: join(dir, file), hash: createHash('sha1').update(png).digest('hex').slice(0, 12) });
     }
     metrics = await page.evaluate(readFrames);
+    canvases = await page.evaluate(canvasHealth);
 
-    // Does it answer? Press the keys, and see whether the picture changed. A game
-    // that renders beautifully and ignores the arrow keys is not a game yet.
+    // Does it answer? Press each key ON ITS OWN and see whether the picture changed.
+    //
+    // Pressing them all together and asking "did anything move" is how a game that
+    // implements ArrowLeft and ArrowRight, promises "space to dash" in its own HUD,
+    // and does nothing at all on space, reports as `input registered`. One working
+    // key was covering for every broken one.
     if (keys.length) {
-      const before = await page.screenshot();
-      for (const k of keys) { await page.press(k); await new Promise((r) => setTimeout(r, 120)); }
-      await new Promise((r) => setTimeout(r, 250));
-      const after = await page.screenshot();
-      writeFileSync(join(dir, 'input-before.png'), before);
-      writeFileSync(join(dir, 'input-after.png'), after);
       const h = (b) => createHash('sha1').update(b).digest('hex');
-      inputEffect = { keys, changed: h(before) !== h(after) };
+      const per = [];
+      for (const k of keys) {
+        const before = await page.screenshot();
+        await page.press(k);
+        await new Promise((r) => setTimeout(r, 260));     // a few frames for the effect to land
+        const after = await page.screenshot();
+        // The game is animating anyway, so a changed picture proves nothing on its
+        // own. Compare against how much it changes when we press NOTHING.
+        per.push({ key: k, changed: h(before) !== h(after), before, after });
+      }
+      // The control: what does an idle interval look like?
+      const idle0 = await page.screenshot();
+      await new Promise((r) => setTimeout(r, 260));
+      const idle1 = await page.screenshot();
+      const animatesOnItsOwn = h(idle0) !== h(idle1);
+
+      writeFileSync(join(dir, 'input-before.png'), per[0].before);
+      writeFileSync(join(dir, 'input-after.png'), per.at(-1).after);
+      inputEffect = {
+        keys,
+        animates_on_its_own: animatesOnItsOwn,
+        per_key: per.map(({ key, changed }) => ({ key, changed })),
+        changed: per.some((p) => p.changed),
+      };
+      // If the picture moves by itself, "the pixels changed" tells you nothing — so
+      // measure the honest thing instead: does the PLAYER respond. We cannot know
+      // that from pixels alone, so we say what we know and do not overclaim.
+      inputEffect.conclusive = !animatesOnItsOwn;
     }
   } finally { await session.close(); }
 
   const uniq = new Set(frames.map((f) => f.hash)).size;
   const v = [];
+
+  // ── the canvas, in pixels ──────────────────────────────────────────────────
+  for (const cv of canvases) {
+    // A 400x250 canvas stretched to 800x500 doubles every pixel. The most common
+    // thing wrong with a hand-written game, and a screenshot will not show it to you
+    // — it just looks slightly soft, and you assume that is the style.
+    if (cv.scale >= 1.5) {
+      v.push({ rule: 'canvas-blur', severity: 'medium', selector: 'canvas', detail:
+        `the canvas is ${cv.backing[0]}x${cv.backing[1]} but drawn at ${cv.css[0]}x${cv.css[1]} CSS px — every pixel is `
+        + `stretched ${cv.scale}x. Set width/height to ${cv.want[0]}x${cv.want[1]} (css x devicePixelRatio) and scale the context.` });
+    }
+    // You cannot see the game. It renders, it animates, it answers the keys, and the
+    // player and the obstacles are all tasteful dark greys on a dark ground.
+    if (cv.best_contrast != null && cv.ink_coverage > 0.0005 && cv.best_contrast < 3) {
+      v.push({ rule: 'unreadable', severity: 'high', selector: 'canvas', detail:
+        `nothing on the canvas reaches 3:1 against the background ${cv.background} — the most visible shape is `
+        + `${cv.best_contrast}:1. The game draws, and you cannot see it.` });
+    } else if (cv.readable_shapes === 0 && cv.shapes > 0) {
+      v.push({ rule: 'unreadable', severity: 'high', selector: 'canvas', detail:
+        `${cv.shapes} distinct shapes are drawn and not one of them clears 3:1 against ${cv.background}.` });
+    }
+    if (cv.ink_coverage != null && cv.ink_coverage < 0.0005) {
+      v.push({ rule: 'empty-canvas', severity: 'medium', selector: 'canvas', detail:
+        `${(cv.ink_coverage * 100).toFixed(2)}% of the canvas is anything other than the background — it is very nearly blank.` });
+    }
+  }
+
   // The two ways a game is dead on arrival, and neither shows up in a single shot.
   if (uniq === 1 && frames.length > 1) {
     v.push({ rule: 'frozen', severity: 'high', selector: 'canvas', detail:
@@ -157,15 +210,31 @@ export async function play(target, opts = {}) {
   if (metrics?.instrumented && !metrics.canvases.length) {
     v.push({ rule: 'no-canvas', severity: 'low', selector: 'body', detail: 'no <canvas> on the page — if this is a DOM game, ignore this' });
   }
-  if (inputEffect && !inputEffect.changed) {
-    v.push({ rule: 'input-ignored', severity: 'high', selector: 'window', detail:
-      `pressed ${inputEffect.keys.join(', ')} and not a single pixel changed — the game is not listening` });
+  if (inputEffect) {
+    const dead = inputEffect.per_key.filter((k) => !k.changed).map((k) => k.key);
+    if (!inputEffect.changed) {
+      v.push({ rule: 'input-ignored', severity: 'high', selector: 'window', detail:
+        `pressed ${inputEffect.keys.join(', ')} and not a single pixel changed — the game is not listening` });
+    } else if (inputEffect.conclusive && dead.length) {
+      // The game is otherwise still, so a key that changed nothing changed nothing.
+      v.push({ rule: 'input-ignored', severity: 'high', selector: 'window', detail:
+        `${dead.join(', ')} did nothing. ${inputEffect.per_key.filter((k) => k.changed).map((k) => k.key).join(', ')} `
+        + `worked — which is exactly how a dead key hides: one working key covers for it.` });
+    } else if (!inputEffect.conclusive) {
+      // And here iris DECLINES. The picture moves on its own, so "the pixels changed"
+      // proves nothing about the key. Saying "input registered" here — which is what
+      // it used to say — is a confident answer to a question it cannot answer.
+      v.push({ rule: 'input-unproven', severity: 'low', selector: 'window', detail:
+        `this game animates on its own, so a changed frame does not prove a key did anything. `
+        + `iris cannot tell you from pixels whether ${inputEffect.keys.join(', ')} actually work — and neither can a screenshot. `
+        + `Test the keys yourself, or give the game a still state to be probed in.` });
+    }
   }
 
   const run = summarise({ id: runId, kind: 'play', target, url, dir,
     shots: [{ viewport: opts.viewport || 'desktop', theme: opts.theme || 'dark', file: frames.at(-1)?.file,
       path: frames.at(-1)?.path, violations: v, counts: {}, console: session.page.console.slice(0, 20) }],
-    frames, metrics, input: inputEffect, unique_frames: uniq, seconds });
+    frames, metrics, input: inputEffect, canvases, unique_frames: uniq, seconds });
   writeFileSync(join(dir, 'run.json'), JSON.stringify(run, null, 2));
   return run;
 }
@@ -201,6 +270,15 @@ function summarise(run) {
 }
 const RANK = { high: 0, medium: 1, low: 2 };
 
+// Never let the headline contradict the finding underneath it. "input registered"
+// on a game whose picture moves by itself is a claim iris cannot support.
+function inputWord(i) {
+  if (!i.changed) return 'IGNORED';
+  if (!i.conclusive) return 'unproven (the picture moves on its own)';
+  const dead = i.per_key.filter((k) => !k.changed).map((k) => k.key);
+  return dead.length ? `${dead.join('/')} IGNORED` : 'registered';
+}
+
 // A briefing an agent can act on: what is wrong, where, and nothing else. Kept
 // short on purpose — a 4000-token wall of violations gets skimmed, not fixed.
 export function report(run, { limit = 25 } = {}) {
@@ -209,7 +287,7 @@ export function report(run, { limit = 25 } = {}) {
   L.push(`${run.kind === 'play' ? '🎮' : '👁'}  ${run.target}`);
   if (run.kind === 'play' && run.metrics?.instrumented) {
     L.push(`   ${run.metrics.fps} fps · ${run.frames.length} frames, ${run.unique_frames} distinct · worst hitch ${run.metrics.worst_hitch_ms}ms`
-      + (run.input ? ` · input ${run.input.changed ? 'registered' : 'IGNORED'}` : ''));
+      + (run.input ? ` · input ${inputWord(run.input)}` : ''));
   } else {
     L.push(`   ${run.shots.length} renders (${[...new Set(run.shots.map((x) => x.viewport))].join(', ')} × ${[...new Set(run.shots.map((x) => x.theme))].join(', ')})`);
   }

@@ -166,3 +166,49 @@ test('text on a gradient is judged against the gradient, not against a white pag
     `every pixel of this page is dark and every word legible; got: ${JSON.stringify(rule(run, 'contrast'))}`);
   assert.equal(run.summary.passed, true);
 });
+
+// A game can render, animate at 120fps, and answer the keys — and be unplayable,
+// because you cannot SEE it. The DOM contrast check is no help: a canvas is one
+// element with one colour as far as the DOM knows. So iris reads the pixels.
+test('a game you cannot see is caught — it renders, it animates, and it is invisible', needsChrome, async () => {
+  const run = await iris.play(fixture('invisiblegame.html'), { seconds: 2, frames: 3 });
+
+  // Everything iris knew how to check BEFORE this passes.
+  assert.ok(run.metrics.fps >= 30, 'the loop runs');
+  assert.ok(run.unique_frames > 1, 'the frames differ');
+
+  const un = rule(run, 'unreadable')[0];
+  assert.ok(un, 'nothing on this canvas reaches 3:1 against the ground');
+  assert.match(un.detail, /you cannot see it|clears 3:1/);
+
+  // And a 320×200 canvas drawn at 640×400 doubles every pixel. A screenshot just
+  // looks slightly soft, and you assume that is the style.
+  const blur = rule(run, 'canvas-blur')[0];
+  assert.ok(blur, 'the canvas is stretched');
+  assert.match(blur.detail, /320x200 but drawn at 640x400/);
+  assert.equal(run.summary.passed, false);
+});
+
+// One working key covers for every dead one. Pressing them all together and asking
+// "did anything move" is how a game that promises "space to dash" in its own HUD,
+// and does nothing at all on space, reported as `input registered`.
+test('a dead key hides behind a working one — unless you press them one at a time', needsChrome, async () => {
+  const run = await iris.play(fixture('deadkey.html'), { seconds: 1, frames: 2, keys: 'ArrowRight,Space' });
+  assert.equal(run.input.conclusive, true, 'this game is still until you press something, so pixels DO prove it');
+  assert.deepEqual(run.input.per_key, [{ key: 'ArrowRight', changed: true }, { key: 'Space', changed: false }]);
+  const ig = rule(run, 'input-ignored')[0];
+  assert.ok(ig, 'Space did nothing and must be named');
+  assert.match(ig.detail, /Space did nothing/);
+});
+
+// And where pixels genuinely cannot answer, iris says so instead of guessing. A game
+// that moves on its own changes pixels whether or not the key did anything —
+// "input registered" there is a confident answer to a question it cannot answer.
+test('when the picture moves on its own, iris declines to claim the keys work', needsChrome, async () => {
+  const run = await iris.play(fixture('livegame.html'), { seconds: 1, frames: 2, keys: 'ArrowRight' });
+  assert.equal(run.input.conclusive, false, 'livegame animates by itself');
+  assert.ok(rule(run, 'input-unproven').length, 'it must say it cannot know, not that the key worked');
+  assert.match(iris.report(run), /input unproven/);
+  // …and declining is not a failure. It is a fact about the game, not a defect.
+  assert.equal(run.summary.high, 0);
+});

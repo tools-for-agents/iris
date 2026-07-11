@@ -393,3 +393,72 @@ export function critiquePage(opts) {
     weights: [...weights.keys()].sort(),
   } };
 }
+
+// ── Can you actually SEE the game? ───────────────────────────────────────────
+// The DOM contrast check cannot help here: a canvas is one element with one colour
+// as far as the DOM is concerned. So read the pixels. An agent will happily paint
+// #2a3140 obstacles and a #3d4757 player onto a #0b0e14 background — every one of
+// them a tasteful dark grey, and the game invisible. It renders, it animates, it
+// answers the keys, and you cannot see it.
+//
+// Runs in the page. 2D contexts only: a WebGL buffer cannot be read back without
+// preserveDrawingBuffer, and inventing a number there would be worse than silence.
+export function canvasHealth() {
+  const out = [];
+  const dpr = window.devicePixelRatio || 1;
+  const lum = (r, g, b) => {
+    const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  };
+  const ratio = (a, b) => { const [hi, lo] = a > b ? [a, b] : [b, a]; return (hi + 0.05) / (lo + 0.05); };
+
+  for (const c of document.querySelectorAll('canvas')) {
+    const r = c.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) continue;
+    const info = {
+      backing: [c.width, c.height],
+      css: [Math.round(r.width), Math.round(r.height)],
+      want: [Math.round(r.width * dpr), Math.round(r.height * dpr)],
+      dpr,
+      // Blur: a 400x250 canvas stretched to 800x500 doubles every pixel. It is the
+      // most common thing wrong with a hand-written game, and a screenshot hides it.
+      scale: +(r.width / (c.width || 1)).toFixed(2),
+    };
+
+    let ctx = null;
+    try { ctx = c.getContext('2d'); } catch { /* webgl */ }
+    if (ctx && c.width > 0 && c.height > 0) {
+      let data = null;
+      try { data = ctx.getImageData(0, 0, c.width, c.height).data; } catch { data = null; }
+      if (data) {
+        const px = c.width * c.height;
+        const step = Math.max(1, Math.floor(px / 30000));      // sample, don't crawl
+        const bins = new Map();
+        let n = 0;
+        for (let i = 0; i < data.length; i += 4 * step) {
+          if (data[i + 3] < 8) continue;                        // transparent
+          const key = ((data[i] >> 3) << 10) | ((data[i + 1] >> 3) << 5) | (data[i + 2] >> 3);
+          const b = bins.get(key);
+          if (b) b.n++; else bins.set(key, { n: 1, r: data[i], g: data[i + 1], b: data[i + 2] });
+          n++;
+        }
+        if (n > 0) {
+          const sorted = [...bins.values()].sort((a, b) => b.n - a.n);
+          const bg = sorted[0];                                  // the commonest colour IS the ground
+          const bgL = lum(bg.r, bg.g, bg.b);
+          // Everything that is not the ground and is big enough to be a THING,
+          // rather than one antialiased edge.
+          const ink = sorted.slice(1).filter((x) => x.n / n >= 0.0015);
+          const best = ink.reduce((m, x) => Math.max(m, ratio(lum(x.r, x.g, x.b), bgL)), 0);
+          info.background = `rgb(${bg.r}, ${bg.g}, ${bg.b})`;
+          info.ink_coverage = +((n - bg.n) / n).toFixed(4);
+          info.best_contrast = +best.toFixed(2);
+          info.readable_shapes = ink.filter((x) => ratio(lum(x.r, x.g, x.b), bgL) >= 3).length;
+          info.shapes = ink.length;
+        }
+      }
+    }
+    out.push(info);
+  }
+  return out;
+}
