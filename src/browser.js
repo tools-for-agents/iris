@@ -237,14 +237,26 @@ export async function open({ chrome = findChrome(), attach = process.env.IRIS_CD
 
   const port = await freePort();
   const profile = mkdtempSync(join(tmpdir(), 'iris-profile-'));
-  const proc = spawn(chrome, [
+  const args = [
     '--headless=new', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`,
     '--no-first-run', '--no-default-browser-check', '--disable-gpu',
     '--hide-scrollbars',            // a scrollbar in every screenshot is 15px of noise, and it skews overflow checks
     '--force-device-scale-factor=1',
     '--disable-dev-shm-usage',      // CI containers have a tiny /dev/shm; without this Chrome dies mid-screenshot
-    'about:blank',
-  ], { stdio: 'ignore', detached: false });
+  ];
+  // Chrome's sandbox needs user namespaces, which CI containers (and root) do not
+  // give it — it exits instantly and the only symptom is a debugging port that never
+  // opens. We are already rendering untrusted-by-nobody local pages in a throwaway
+  // profile, so drop the sandbox on Linux rather than lose the browser entirely.
+  if (process.platform === 'linux') args.push('--no-sandbox', '--disable-setuid-sandbox');
+  args.push('about:blank');
+
+  // NOT stdio:'ignore'. Chrome explains itself on stderr, and swallowing that turned
+  // a one-line "Failed to move to new namespace" into a blind 12-second timeout that
+  // said only "did not open a debugging port". Keep the last of it and hand it over.
+  const proc = spawn(chrome, args, { stdio: ['ignore', 'ignore', 'pipe'], detached: false });
+  let stderr = '';
+  proc.stderr?.on('data', (c) => { stderr = (stderr + c).slice(-1200); });
 
   let page;
   try {
@@ -253,7 +265,8 @@ export async function open({ chrome = findChrome(), attach = process.env.IRIS_CD
   } catch (e) {
     try { proc.kill('SIGKILL'); } catch {}
     try { rmSync(profile, { recursive: true, force: true }); } catch {}
-    throw e;
+    const why = stderr.trim().split('\n').filter(Boolean).slice(-3).join(' | ');
+    throw new Error(e.message + (why ? `\n  chrome said: ${why}` : '\n  chrome said nothing at all'));
   }
 
   return {
