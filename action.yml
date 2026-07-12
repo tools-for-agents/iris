@@ -68,6 +68,8 @@ runs:
       env:
         IRIS_CHROME: ${{ steps.chrome.outputs.chrome-path }}
         IRIS_OUT: ${{ runner.temp }}/iris-${{ inputs.name }}
+        IRIS_PRE: ${{ inputs.pre }}
+        IRIS_BOOT: ${{ inputs.boot }}
       run: |
         # The design system lives in ONE file (iris/tokens.json), and the action is
         # already a checkout of iris — so every repo can grade against the kit's system
@@ -83,10 +85,22 @@ runs:
         # either" — a gate that silently stops gating the day someone rewords a headline.
         [ "${{ inputs.strict }}" = "true" ] && STRICT=(--strict) || STRICT=()
 
-        PRE=()
-        if [ -n "${{ inputs.pre }}" ]; then PRE=(--pre "${{ inputs.pre }}"); fi
-        BOOT=()
-        if [ -n "${{ inputs.boot }}" ]; then BOOT=(--boot "${{ inputs.boot }}"); fi
+        # NEVER INTERPOLATE A SCRIPT INTO A SHELL. This used to read
+        #     if [ -n "${{ inputs.boot }}" ]; then BOOT=(--boot "${{ inputs.boot }}"); fi
+        # and GitHub pastes the input STRAIGHT INTO THE BASH SOURCE. So a boot script
+        # containing {"error":"the server refused the write"} — double quotes, with spaces
+        # inside them — closed bash's own string, the test became `[ -n w1 w2 w3 ]`, bash
+        # said "too many arguments", the branch was skipped, and --boot WAS SILENTLY
+        # DROPPED. The job then ran happily against the REAL, unstubbed page and reported
+        # on a state it had never entered.
+        #
+        # It is the worst kind of failure: the gate did not error, it just quietly stopped
+        # testing what it claimed to test. dead-api was "passing" only because its payload
+        # was "ci" — no spaces — so bash collapsed it back into one word. Passing by luck.
+        #
+        # The environment is the only safe channel: values go in as data, never as source.
+        PRE=(); [ -n "$IRIS_PRE" ] && PRE=(--pre "$IRIS_PRE")
+        BOOT=(); [ -n "$IRIS_BOOT" ] && BOOT=(--boot "$IRIS_BOOT")
 
         node "${{ github.action_path }}/src/cli.js" look "${{ inputs.url }}" \
           --viewports "${{ inputs.viewports }}" --themes "${{ inputs.themes }}" \
