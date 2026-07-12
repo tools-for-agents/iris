@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- OPACITY DOES NOT INHERIT AS A COMPUTED VALUE.
+     A child of `opacity: .12` still computes to `opacity: 1` — and is PAINTED at twelve
+     percent. So a checker that reads the element's own style sees #111 on white, calls it
+     18:1, and passes a paragraph the screen is showing at about 1.3:1.
+
+     This is the disabled panel, the ghost state, the fade-in that never finished. It is
+     everywhere, and it was completely invisible.
+
+     `filter: opacity()` is the same thing by another route, and just as invisible.
+
+     Found in the kit's own shared cross-tool strip, which stacked TWO of them:
+         .xtk        { opacity: .92 }
+         .xtk .xtk-l { opacity: .7  }      → 0.64 effective, 2.74:1 on screen
+     in all seven tools, passing every build. -->
+<html><head><meta charset="utf-8"><title>faded</title>
+<style>
+  body { margin:0; background:#fff; color:#111; font:16px/1.6 system-ui; padding:24px; }
+  .disabled { opacity:0.12; }              /* a disabled panel — text painted at 12% */
+  .ghost    { filter:opacity(0.15); }      /* the same thing by another route */
+</style></head>
+<body>
+  <h1>Text painted at a fraction of its declared colour</h1>
+  <div class="disabled">
+    <p>This paragraph declares #111 on white — 18:1 — and is painted at 12% opacity. On screen it is roughly 1.3:1. Nobody can read it.</p>
+  </div>
+  <div class="ghost">
+    <p>And this one is faded by a filter instead. Same result, different property.</p>
+  </div>
+</body></html>

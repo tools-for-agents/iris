@@ -65,6 +65,26 @@ export function auditPage(opts) {
   //
   // Which is the bug this check exists to prevent, committed by the check itself. A
   // pictograph carries no foreground colour to judge, so there is nothing here to judge.
+
+  // OPACITY DOES NOT INHERIT AS A COMPUTED VALUE. A child of `opacity: .12` still computes
+  // to `opacity: 1` — and is PAINTED at twelve percent. So a disabled panel, a ghost state,
+  // a fade-in that never finished: iris read the text's declared colour (#111 on white,
+  // 18:1), passed it, and the screen was showing about 1.3:1.
+  //
+  // `filter: opacity()` is the same thing by another route, and just as invisible to a
+  // check that only reads the element's own style.
+  const effectiveAlpha = (el) => {
+    let a = 1;
+    for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+      const s = getComputedStyle(n);
+      const o = parseFloat(s.opacity);
+      if (Number.isFinite(o)) a *= o;
+      const m = /opacity\(\s*([\d.]+)(%?)\s*\)/.exec(s.filter || '');
+      if (m) a *= (m[2] ? parseFloat(m[1]) / 100 : parseFloat(m[1]));
+    }
+    return a;
+  };
+
   const PICTO = /^[\p{Extended_Pictographic}\uFE0F\u200D\s]+$/u;
   const onlyEmoji = (t) => !!t && PICTO.test(t);
 
@@ -234,7 +254,9 @@ export function auditPage(opts) {
     }
 
     // ── 5. contrast ──────────────────────────────────────────────────────────
-    const inks = onlyEmoji(label(el)) ? [] : inkOf(st, el);
+    const alpha = effectiveAlpha(el);
+    const inks = (onlyEmoji(label(el)) ? [] : inkOf(st, el))
+      .map((c) => (c.unknown ? c : { ...c, a: (c.a ?? 1) * alpha }));
     const bgc = inks.length && !inks[0].unknown ? backdrop(el) : null;
     if (inks.length && !inks[0].unknown && bgc && !bgc.unknown) {
       const bg = bgc;
@@ -281,7 +303,8 @@ export function auditPage(opts) {
           detail: `${pfs.toFixed(1)}px text — below the ${minFont}px floor${mobile ? ' (phones make this worse, not better)' : ''}`
             + ` — and it is rendered by ${pseudo}, so it is on the screen but not in the DOM` });
       }
-      const pink = parse(ps.color);
+      const praw = parse(ps.color);
+      const pink = praw ? { ...praw, a: (praw.a ?? 1) * effectiveAlpha(el) } : null;
       const pbg = pink && pink.a > 0.05 ? backdrop(el) : null;
       if (pink && pink.a > 0.05 && pbg && !pbg.unknown) {
         const eff = pink.a < 1 ? over(pink, pbg) : pink;

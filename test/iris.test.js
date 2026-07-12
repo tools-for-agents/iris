@@ -504,3 +504,21 @@ test('SVG text is painted by fill, and ::after text is not an element at all', n
   assert.ok(!contrast.some((v) => /🧠|🛰|🧭/.test(v.text || '')),
     'a pictograph carries no foreground colour to measure, so it is not measured');
 });
+
+// ── Opacity does not inherit as a computed value ────────────────────────────────
+test('text painted at 12% is not 18:1, whatever its declared colour says', needsChrome, async () => {
+  // A child of `opacity: .12` still COMPUTES to `opacity: 1`. It is painted at twelve
+  // percent. So iris read #111 on white, called it 18:1, and passed a paragraph the screen
+  // was showing at about 1.3:1 — the disabled panel, the ghost state, the fade-in that
+  // never finished. `filter: opacity()` is the same thing by another route.
+  const run = await iris.look(fixture('faded.html'), { viewports: 'desktop', themes: 'light' });
+  const c = rule(run, 'contrast');
+
+  assert.ok(c.some((v) => /disabled/.test(v.selector)), 'an ancestor opacity fades the ink');
+  assert.ok(c.some((v) => /ghost/.test(v.selector)), 'and so does filter: opacity()');
+  assert.ok(c.every((v) => v.ratio < 2), `both are ~1.3:1 on screen; got ${c.map((v) => v.ratio)}`);
+
+  // And it must not fire on ordinary pages: opacity 1 leaves the maths exactly as it was.
+  const clean = await iris.look(fixture('clean.html'), { viewports: 'desktop', themes: 'dark' });
+  assert.deepEqual(rule(clean, 'contrast'), [], 'a page with no fading is unaffected');
+});
