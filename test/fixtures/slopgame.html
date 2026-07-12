@@ -1,0 +1,41 @@
+<!doctype html>
+<!-- This game is not broken.
+
+     It draws. It animates at full rate. The frames differ. It answers both arrow
+     keys. Every shape clears 3:1 against the ground. `iris play` says: nothing broken.
+
+     And nobody designed it.
+
+     There are five hazards on screen and they are five different colours — 'red',
+     '#ff0000', 'crimson', '#e2483c', 'tomato' — because they were written a hundred
+     lines apart by something that could not remember what it picked the first time.
+     A player reads five different colours as five different MEANINGS. There is only
+     one meaning here. And the coin is drawn in a green that is not any role at all.
+
+     No screenshot argues with this, and no DOM assertion can even see it: a canvas is
+     one element with one colour as far as the DOM knows. Only the pixels know, and
+     only a declared palette can say what the pixels were allowed to be. -->
+<html><head><meta charset="utf-8"><title>slop game</title>
+<style>body{margin:0;background:#0a0b0e}canvas{display:block}</style></head>
+<body><canvas id="c" width="640" height="360"></canvas>
+<script>
+  const ctx = document.getElementById('c').getContext('2d');
+  // Five reds. Nobody chose five reds.
+  const HAZARD = ['red', '#ff0000', 'crimson', '#e2483c', 'tomato'];
+  let x = 300, t = 0;
+  addEventListener('keydown', (e) => { if (e.key === 'ArrowRight') x += 40; if (e.key === 'ArrowLeft') x -= 40; });
+  (function loop() {
+    t++;
+    ctx.fillStyle = '#0a0b0e'; ctx.fillRect(0, 0, 640, 360);        // the declared ground
+    ctx.fillStyle = '#4fd6be';                                       // the declared player
+    ctx.fillRect(x, 160 + Math.sin(t / 10) * 30, 40, 40);
+    HAZARD.forEach((c, i) => {                                       // ...and five hazards nobody chose
+      ctx.fillStyle = c;
+      ctx.fillRect(40 + i * 110, 40, 60, 60);
+    });
+    ctx.fillStyle = '#2ecc71';                                       // a coin, in a green that means nothing
+    ctx.fillRect(300, 290, 40, 40);
+    requestAnimationFrame(loop);
+  })();
+</script>
+</body></html>

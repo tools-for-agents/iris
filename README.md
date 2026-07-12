@@ -103,6 +103,44 @@ Then every off-system value is named, with the one it should have been, **and wh
 
 `iris.tokens.json` / `tokens.json` is auto-loaded from the project root, so the agent does not even have to be told.
 
+### …and a game has a palette
+
+Every check above is blind to a game. A canvas is **one element with one colour** as far as the DOM knows — no type scale, no spacing grid, no radii. So games got *no design review at all*, which is exactly why agent-written games look the way they do:
+
+```js
+const HAZARD = ['red', '#ff0000', 'crimson', '#e2483c', 'tomato'];
+```
+
+Five hazards, five colours, written a hundred lines apart by something that could not remember what it picked the first time. A player reads five colours as five **meanings**. There is one meaning here.
+
+So declare what a colour is *allowed to mean*, and iris reads the pixels the game actually drew:
+
+```jsonc
+"game": {
+  "tolerance": 30,
+  "palette": { "ground": "#0a0b0e", "player": "#4fd6be", "danger": "#ec4899",
+               "goal": "#e0a24e", "neutral": "#8a92a3", "accent": "#c792ea" }
+}
+```
+
+```
+iris play ./game.html --tokens ./tokens.json --strict
+
+✓ nothing broken                        ← it renders, it animates, it answers the keys
+── nothing is broken here, but nobody decided it either ──
+· off-palette — 5 colours are drawn on the canvas that are not in your game palette:
+  rgb(255,0,0) (3.1% of the ink → nearest is "danger" #ec4899, 264 away);
+  rgb(220,20,60) (1.6% → "danger", 173 away); rgb(46,204,113) (0.7% → "player", 138 away) …
+```
+
+`tolerance` is how far a drawn pixel may sit from a role and still *be* that role. It does double duty: **two roles closer together than the tolerance are ambiguous by construction** — no pixel could be attributed to either — which is also the definition of a player who cannot tell the thing they chase from the thing that kills them.
+
+```
+· indistinct-roles — "player" (#4fd6be) and "danger" (#54d4bd) are 12 apart, closer than
+  the 30 you set as the tolerance. Two roles a player cannot tell apart are one role and
+  a bug report.
+```
+
 ## For the agent (MCP)
 
 `iris_look` returns **the actual images** alongside the report, so the model sees its own output.

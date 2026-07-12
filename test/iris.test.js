@@ -278,3 +278,49 @@ test('gradient text is judged by its darkest stop — and the old model passed a
     `the ink is a gradient stop, not the never-painted color; got fg=${c[0].fg}`);
   assert.doesNotMatch(c[0].fg, /232/, 'rgb(232,235,242) is declared, and never reaches the screen');
 });
+
+// ── Games had no taste review at all ────────────────────────────────────────────
+// A canvas is ONE element with ONE colour as far as the DOM knows, so type-scale,
+// spacing-grid and radius checks are all blind to a game. Which is exactly why
+// agent-written games look the way they do: 'red', then '#ff0000', then 'crimson',
+// two hundred lines apart, and nobody ever chose any of them.
+
+test('a game can be entirely un-broken and still designed by nobody', needsChrome, async () => {
+  const run = await iris.play(fixture('slopgame.html'), { seconds: 2, frames: 3, tokens: resolve(import.meta.dirname, '..', 'tokens.json') });
+
+  // It draws, it animates, it answers the keys, every shape is readable. Nothing is broken.
+  assert.equal(run.summary.passed, true, 'this game works — that is the whole point of the fixture');
+
+  // And it is five different reds for one meaning, plus a green that means nothing.
+  const off = run.design.findings.find((f) => f.rule === 'off-palette');
+  assert.ok(off, 'the colours nobody chose are named');
+  assert.ok(off.values.length >= 4, `four distinct reds and a stray green; got ${off.values.length}`);
+
+  // Naming the value is not enough — it has to say what it SHOULD have been.
+  // "rgb(220,20,60) is off-palette" sends you hunting. "→ danger #ec4899" does not.
+  assert.ok(off.values.every((v) => v.nearest && v.role && v.distance > 0),
+    'every off-palette colour names the role it came closest to');
+  assert.ok(off.values.some((v) => v.role === 'danger'), 'the reds are reaching for "danger"');
+});
+
+test('a game that is on the palette is left alone — the check is not a lint that fires on everything', needsChrome, async () => {
+  const run = await iris.play(fixture('livegame.html'), { seconds: 2, frames: 3, tokens: resolve(import.meta.dirname, '..', 'tokens.json') });
+  assert.deepEqual(run.design.findings, [],
+    `this game draws the declared ground and the declared player and nothing else; got ${JSON.stringify(run.design.findings)}`);
+});
+
+test('two roles a player cannot tell apart are one role and a bug report', needsChrome, async () => {
+  // The tolerance does double duty: it is how close a pixel must be to BE a role, so
+  // two roles closer together than it are ambiguous by construction — no pixel could
+  // ever be attributed to either. Which is also the definition of a player who cannot
+  // tell the thing they chase from the thing that kills them.
+  const run = await iris.play(fixture('livegame.html'), { seconds: 2, frames: 2, tokens: false });
+  const d = iris.gameDesign(run.canvases, {
+    tolerance: 30,
+    palette: { ground: '#0b0e14', player: '#4fd6be', danger: '#54d4bd' },   // danger IS the player
+  });
+  const clash = d.findings.find((f) => f.rule === 'indistinct-roles');
+  assert.ok(clash, 'the thing you chase and the thing that kills you are the same colour');
+  assert.match(clash.detail, /player/);
+  assert.match(clash.detail, /danger/);
+});

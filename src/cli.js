@@ -53,9 +53,14 @@ try {
     const run = await iris.play(target, {
       seconds: flags['--seconds'], frames: flags['--frames'], keys: flags['--keys'],
       viewport: flags['--viewports'], theme: flags['--themes'],
+      tokens: flags['--no-tokens'] ? false : flags['--tokens'],
     });
     out(flags['--json'] ? run : iris.report(run));
     if (!run.summary.passed) process.exitCode = 1;
+    if (flags['--strict'] && run.design?.findings?.length) {
+      process.stderr.write(`iris: ${run.design.findings.length} design findings and --strict is on\n`);
+      process.exitCode = 1;
+    }
   } else if (cmd === 'tokens') {
     if (!target) throw new Error('usage: iris tokens <url|file>  — read the design system a page is already using');
     const t = await iris.extractTokens(target, { name: flags['--name'] });

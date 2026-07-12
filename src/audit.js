@@ -564,6 +564,11 @@ export function canvasHealth() {
           info.best_contrast = +best.toFixed(2);
           info.readable_shapes = ink.filter((x) => ratio(lum(x.r, x.g, x.b), bgL) >= 3).length;
           info.shapes = ink.length;
+          // The palette the game ACTUALLY DREW. We already binned it to find the ground;
+          // throwing it away afterwards is why a game could be graded on whether you can
+          // see it, but never on whether anybody chose the colours.
+          info.ground = [bg.r, bg.g, bg.b];
+          info.ink_colors = ink.slice(0, 16).map((x) => ({ rgb: [x.r, x.g, x.b], share: +(x.n / n).toFixed(4) }));
         }
       }
     }
