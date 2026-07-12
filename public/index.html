@@ -19,6 +19,12 @@
     }
   }
   * { box-sizing:border-box; }
+  .nochrome { padding: 12px 20px; border-bottom:1px solid var(--line);
+    background:color-mix(in srgb, var(--iris, #c792ea) 12%, var(--panel)); font-size:12px; line-height:1.6; }
+  .nochrome[hidden] { display:none; }
+  .nochrome b { color:var(--txt); font-weight:600; }
+  .go:disabled { opacity:1 !important; background:var(--panel-2) !important; color:var(--txt) !important;
+    border-color:var(--line) !important; cursor:not-allowed; }
   body { margin: 0; padding-bottom: 44px; background:var(--bg); color:var(--txt); font:14px/1.6 system-ui,-apple-system,sans-serif; }
   /* A <p> with no declared margin takes 1em from the BROWSER's stylesheet — which here
      is 14px, off the 4px grid we declare. iris caught this on its own page, the first
@@ -41,7 +47,12 @@
         border:1px solid var(--accent); background:var(--accent); color:var(--bg); font-weight:600; }
   .go:hover { filter:brightness(1.1); }
   .go.ghost { background:transparent; color:var(--accent); }
-  .go[disabled] { opacity:.5; cursor:default; }
+  /* `opacity:.5` painted the label at half strength — 2.93:1, unreadable. A disabled
+     control still has to be READABLE: you have to be able to see what it is you cannot
+     press. Say "inert" with colour, not by fading the words out of existence. (The same
+     mistake as the cross-tool strip, and iris only caught it once it learned that opacity
+     does not inherit as a computed value.) */
+  .go[disabled] { cursor:default; }
   .theme-btn { flex:none; padding:0; width:34px; height:34px; border-radius:8px; cursor:pointer; border:1px solid var(--line); background:var(--panel-2); color:var(--muted); font-size:14px; }
 
   main { display:grid; grid-template-columns:270px 1fr; min-height:calc(100vh - 61px); }
@@ -123,6 +134,7 @@
          border-radius:8px; background:color-mix(in srgb, var(--bad) 8%, transparent); margin-bottom: 16px; }
 </style>
 
+<div id="noChrome" class="nochrome" hidden></div>
 <header>
   <div class="logo"><span class="g">👁</span><div><b>iris</b> <span class="tag">the agent's eye</span></div></div>
   <div class="bar">
@@ -318,6 +330,32 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape') $('#lb').classList.
     the keys to see whether it answers.</p>
     <p style="color:var(--faint)">browser: <code>${esc(st.chrome || 'NOT FOUND — set IRIS_CHROME')}</code></p>
   </div>`;
+
+  // NO BROWSER MEANS IRIS CANNOT DO THE ONE THING IT IS FOR.
+  //
+  // The page did say so — in the smallest, faintest text on it, at the bottom of two
+  // paragraphs of copy, styled like a footnote. Meanwhile the big `look` button sat at the
+  // top, bright and inviting, offering to do the one thing that cannot happen.
+  //
+  // A page that whispers the reason it cannot work, and shouts the button that will not,
+  // is the same lie anvil told with "The forge is cold". Say it where it is read, and take
+  // away the button that cannot fire — a control that looks alive and does nothing is
+  // worse than one that looks dead: it invites the click, and then says nothing at all.
+  const warn = $('#noChrome');
+  if (!st.chrome) {
+    warn.hidden = false;
+    warn.innerHTML = '<b>iris cannot see anything: no browser found.</b> iris drives a real Chrome to render your page — '
+      + 'without one it cannot look at all, and this is not a problem with your page. '
+      + 'Install Chrome or Chromium, or point <code>IRIS_CHROME</code> at a binary you already have. '
+      + '(Already have one running with a debug port? Set <code>IRIS_CDP</code> instead.)';
+    for (const id of ['look', 'play']) {
+      const b = $('#' + id);
+      if (b) { b.disabled = true; b.title = 'no browser found — iris cannot render anything'; }
+    }
+  } else {
+    warn.hidden = true;
+    for (const id of ['look', 'play']) { const b = $('#' + id); if (b) b.disabled = false; }
+  }
   await loadRuns();
   if (RUNS.length) show(RUNS[0]);
 })();
