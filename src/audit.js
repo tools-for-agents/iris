@@ -399,6 +399,82 @@ export function critiquePage(opts) {
     }
   }
 
+  // ── things that are ALMOST lined up ────────────────────────────────────────
+  // "Do things line up" is the one piece of hierarchy that needs no taste at all —
+  // and no design system can answer it. A token file has nothing to say about two
+  // cards sitting three pixels out of true.
+  //
+  // A 40px indent is a decision. A 3px one is an accident. Nobody has ever MEANT to
+  // put two stacked cards three pixels out of line; it is what you get by nudging a
+  // margin until the number looked about right. And it is exactly the thing a person
+  // sees instantly, reads as cheap, and cannot name.
+  //
+  // Scoped tightly, because a check that fires on every page teaches you to skim past
+  // it: SIBLINGS only (a child indented inside its parent is a layout, not a mistake),
+  // STACKED only (things side by side are supposed to have different left edges), and
+  // NEAR-MISSES only — 1 to 4px. Further apart is a choice, and iris is not here to
+  // relitigate choices.
+  const NEAR = 4;
+  const askew = [];
+  const seenPair = new Set();
+  const parents = new Set(els.map((e) => e.parentElement).filter(Boolean));
+  for (const p of parents) {
+    // "Stacked" has to mean IN A COLUMN BY CONSTRUCTION — not "happened to land on
+    // different rows". In a wrapping flex row, an item pushed to the far end with
+    // `margin-left:auto` has a leading edge set by where the row ran out, not by any
+    // column; comparing it to a left-aligned button's leading edge is apples to oranges,
+    // and they only came within 4px of each other by accident. That reported anvil's
+    // toolbar — a right-aligned button doing exactly what it was told — as a defect.
+    const ps = getComputedStyle(p);
+    const pd = ps.display;
+    const column = pd === 'block' || pd === 'flow-root' || pd === 'list-item'
+      || ((pd === 'flex' || pd === 'inline-flex') && ps.flexDirection.startsWith('column'));
+    if (!column) continue;
+    const kids = [...p.children].filter((k) => {
+      const r = k.getBoundingClientRect();
+      const s = getComputedStyle(k);
+      return r.width >= 40 && r.height >= 8
+        && s.display !== 'inline' && s.visibility !== 'hidden' && +s.opacity !== 0
+        && s.position !== 'absolute' && s.position !== 'fixed';   // taken out of flow on purpose
+    });
+    if (kids.length < 2) continue;
+    const rects = kids.map((k) => k.getBoundingClientRect());
+    // Only ever compare an edge the LAYOUT sets — never one the CONTENT sets.
+    //
+    // A chip is shrink-to-fit: two chips with different words in them have different
+    // widths, so their trailing edges differ BY DEFINITION. Comparing those reported
+    // agent-hq's perfectly ordinary label row as three misalignments — a check that
+    // fires on a thing working exactly as designed, which is how a checker teaches you
+    // to ignore it. An element's leading edge is placed by the layout; its trailing
+    // edge is placed by the layout only when it is STRETCHED to fill its container.
+    const inner = p.clientWidth - (parseFloat(ps.paddingLeft) || 0) - (parseFloat(ps.paddingRight) || 0);
+    const stretched = (r) => inner > 0 && Math.abs(r.width - inner) < 1.5;
+    for (let i = 0; i < kids.length; i++) {
+      for (let j = i + 1; j < kids.length; j++) {
+        const a = rects[i], b = rects[j];
+        // Side by side? Then different left edges are the entire point.
+        if (Math.abs(a.top - b.top) < Math.max(a.height, b.height) * 0.5) continue;
+        for (const edge of ['left', 'right']) {
+          if (edge === 'right' && !(stretched(a) && stretched(b))) continue;   // content, not layout
+          const d = Math.abs(a[edge] - b[edge]);
+          if (d < 1 || d > NEAR) continue;      // <1px is subpixel rounding; >4px is a decision
+          const key = `${where(kids[i])}|${where(kids[j])}|${edge}`;
+          if (seenPair.has(key)) continue;
+          seenPair.add(key);
+          askew.push({ a: where(kids[i]), b: where(kids[j]), edge, d: +d.toFixed(1) });
+        }
+      }
+    }
+  }
+  if (askew.length) {
+    F.push({ rule: 'almost-aligned', severity: 'design',
+      detail: `${askew.length} pair${askew.length > 1 ? 's' : ''} of stacked siblings sit a few pixels out of true: `
+        + askew.slice(0, 5).map((m) => `${m.a} and ${m.b} differ by ${m.d}px on the ${m.edge}`).join('; ')
+        + `. A 40px indent is a decision; a 3px one is an accident — and it is the kind a person sees instantly, `
+        + `reads as cheap, and cannot name.`,
+      values: askew.slice(0, 8).map((m) => ({ value: `${m.d}px`, edge: m.edge, at: [m.a, m.b] })) });
+  }
+
   // ── graded against a declared system ───────────────────────────────────────
   if (tokens) {
     const near = (v, list) => list.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));

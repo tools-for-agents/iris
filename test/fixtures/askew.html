@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- Nothing here is broken. It fits, it is readable, it does not throw, and every
+     number in it is on the system: 16px type, a 4px grid, an 8px radius.
+
+     And the second card is three pixels to the right of the first one.
+
+     Nobody chose that. It is what you get from nudging a margin until the number
+     looked about right — and it is exactly the thing a person sees instantly, reads
+     as cheap, and cannot name. No design system can catch it: a token file has
+     nothing to say about two cards being out of true. Only the rendered box does. -->
+<html lang="en"><head><meta charset="utf-8"><title>askew</title>
+<style>
+  body { margin:0; background:#0a0b0e; color:#e8ebf2; font:16px/1.6 system-ui,sans-serif; padding:24px; }
+  .card { background:#12141a; border:1px solid #242832; border-radius:8px; padding:16px; margin:0 0 12px; }
+  .nudged { margin-left:3px; }   /* ← the whole fixture */
+</style></head>
+<body>
+  <div class="card">The first card sits where the grid put it.</div>
+  <div class="card nudged">This one is three pixels to the right, and you can feel it.</div>
+  <div class="card">And this one is back again, which makes it worse.</div>
+</body></html>

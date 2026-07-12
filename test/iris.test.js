@@ -324,3 +324,36 @@ test('two roles a player cannot tell apart are one role and a bug report', needs
   assert.match(clash.detail, /player/);
   assert.match(clash.detail, /danger/);
 });
+
+// ── almost aligned is not aligned ───────────────────────────────────────────────
+test('three pixels out of true is not a decision, it is an accident', needsChrome, async () => {
+  const run = await iris.look(fixture('askew.html'), { viewports: 'desktop', themes: 'dark', tokens: resolve(import.meta.dirname, '..', 'tokens.json') });
+
+  // Nothing is broken and every number is on the system. It still looks cheap.
+  assert.equal(run.summary.passed, true, 'nothing here is BROKEN — that is the point');
+
+  const a = run.design.findings.find((f) => f.rule === 'almost-aligned');
+  assert.ok(a, 'the nudged card is caught');
+  assert.ok(a.values.some((v) => v.value === '3px' && v.edge === 'left'), `names the offset and the edge; got ${JSON.stringify(a.values)}`);
+  assert.ok(a.values.every((v) => v.at?.length === 2), 'and names BOTH elements — one of them alone is not a misalignment');
+});
+
+test('the alignment check does not fire on things working exactly as designed', needsChrome, async () => {
+  // Both of these were false positives I had to kill before this could ship, and both
+  // are the same mistake: comparing edges that are not comparable.
+  //
+  //  · a CHIP is shrink-to-fit — two chips with different words in them have different
+  //    widths, so their TRAILING edges differ by definition. Only compare a trailing
+  //    edge when both elements are stretched to fill the container.
+  //  · a button pushed to the far end of a wrapping toolbar with `margin-left:auto` has
+  //    a leading edge set by where the row ran out, not by any column. "Stacked" has to
+  //    mean IN A COLUMN BY CONSTRUCTION, not "landed on different rows".
+  //
+  // A checker that fires on correct work teaches you to skim past it, which costs you
+  // the one time it was right.
+  for (const f of ['clean.html', 'sloppy.html', 'inlinewrap.html']) {
+    const run = await iris.look(fixture(f), { viewports: 'desktop', themes: 'dark' });
+    assert.deepEqual((run.design?.findings || []).filter((x) => x.rule === 'almost-aligned'), [],
+      `${f} is aligned; got ${JSON.stringify((run.design?.findings || []).filter((x) => x.rule === 'almost-aligned'))}`);
+  }
+});
