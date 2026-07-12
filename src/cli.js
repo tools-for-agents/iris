@@ -7,7 +7,7 @@
 import * as iris from './core.js';
 
 const [, , cmd, ...rest] = process.argv;
-const VALUE = new Set(['--viewports', '--themes', '--seconds', '--frames', '--keys', '--limit', '--port', '--wait', '-k']);
+const VALUE = new Set(['--viewports', '--themes', '--seconds', '--frames', '--keys', '--limit', '--port', '--wait', '--tokens', '--name', '-k']);
 const positionals = []; const flags = {};
 for (let i = 0; i < rest.length; i++) {
   const a = rest[i];
@@ -24,6 +24,7 @@ try {
     const run = await iris.look(target, {
       viewports: flags['--viewports'], themes: flags['--themes'],
       full: !!flags['--full'], wait: flags['--wait'] ? +flags['--wait'] : undefined,
+      tokens: flags['--no-tokens'] ? false : flags['--tokens'],
     });
     out(flags['--json'] ? run : iris.report(run, { limit: flags['--limit'] ? +flags['--limit'] : 25 }));
     // A non-zero exit is what lets `iris look` sit in a loop or a pre-commit hook
@@ -43,6 +44,11 @@ try {
     });
     out(flags['--json'] ? run : iris.report(run));
     if (!run.summary.passed) process.exitCode = 1;
+  } else if (cmd === 'tokens') {
+    if (!target) throw new Error('usage: iris tokens <url|file>  — read the design system a page is already using');
+    const t = await iris.extractTokens(target, { name: flags['--name'] });
+    if (!flags['--json']) delete t._observed;      // the workings, only if you ask
+    out(t);
   } else if (cmd === 'runs') {
     const list = iris.runs({ limit: +(flags['-k'] || flags['--limit'] || 20) });
     if (flags['--json']) out(list);
@@ -68,10 +74,14 @@ try {
       --themes dark,light                (default: both)
       --full                             full-page screenshot, not just the fold
       --json                             the whole run as JSON
+      --tokens <file>                    grade against a declared design system
+                                         (auto-loads ./iris.tokens.json or ./tokens.json)
 
   iris play <url|file>    for games: is the loop drawing, how fast, does it answer input
       --seconds 3  --frames 6  --keys ArrowLeft,ArrowRight,Space
 
+  iris tokens <url|file>  read the design system a page is ALREADY using — a
+                          starting point to edit, instead of a blank page
   iris runs               what the eye has already seen
   iris forget <run-id>    throw a run away
   iris stats              where the browser and the images are

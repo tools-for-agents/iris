@@ -75,6 +75,34 @@ The test fixture for this is a page that is *perfectly fine* — it renders, it 
 
 And it said so about **itself**: `161 of 221 spacing values off the grid`, seven corner radii, seven font sizes. iris now sits on a 4px grid, a 3-step radius scale (8 / 12 / pill) and a 4-step type scale (12 / 14 / 16 / 20) — because its own eye told it not to.
 
+## A design system, as a file
+
+The critique above can only ask *"are you consistent with yourself"*. That catches drift, but it cannot tell you what you should have picked. A declared system can.
+
+```bash
+iris tokens http://localhost:7900/   # read the system a page is ALREADY using
+iris look ./index.html --tokens ./tokens.json
+```
+
+```json
+{ "type": [12, 14, 16, 20, 24, 30, 40],
+  "spacing": { "grid": 4 },
+  "radius": [4, 8, 12, 999],
+  "minFont": 12, "minTap": 24, "contrastAA": 4.5 }
+```
+
+Then every off-system value is named, with the one it should have been, **and where it lives**:
+
+```
+· off-scale-type    — 15px (x9 → 14px) on button, .card h1; 26px (x1 → 24px) on h1
+· off-scale-radius  — 10px (x4 → 8px) on .card
+· off-grid-spacing  — 18px (x6 → 20px) on body, .card
+```
+
+**This is the mechanism by which agent design actually gets good: not more taste — fewer decisions.** A model writing CSS a rule at a time cannot remember what it picked ten lines ago. It does not have to, if the answer is in a file.
+
+`iris.tokens.json` / `tokens.json` is auto-loaded from the project root, so the agent does not even have to be told.
+
 ## For the agent (MCP)
 
 `iris_look` returns **the actual images** alongside the report, so the model sees its own output.

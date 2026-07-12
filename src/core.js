@@ -41,6 +41,18 @@ export function toUrl(target) {
   return pathToFileURL(p).href;
 }
 
+// A design system is a file. Look for one where a project would keep it, so the
+// agent does not have to be told.
+export function loadTokens(explicit) {
+  const tries = explicit ? [explicit]
+    : ['./iris.tokens.json', './tokens.json', join(resolve(OUT(), '..'), 'iris.tokens.json')];
+  for (const t of tries) {
+    try { if (existsSync(t)) return JSON.parse(readFileSync(t, 'utf8')); } catch { /* malformed → fall through */ }
+  }
+  if (explicit) throw new Error(`no tokens file at ${explicit}`);
+  return null;
+}
+
 const slug = (s) => s.replace(/[^a-z0-9]+/gi, '-').replace(/^-|-$/g, '').slice(0, 40).toLowerCase() || 'page';
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
 
@@ -49,11 +61,17 @@ export async function look(target, opts = {}) {
   const url = toUrl(target);
   const viewports = pickViewports(opts.viewports);
   const themes = pickThemes(opts.themes);
-  const cfg = { ...DEFAULTS, ...opts };
   const runId = `${slug(target)}-${stamp()}`;
   const dir = join(OUT(), runId);
   mkdirSync(dir, { recursive: true });
 
+  const tokens = opts.tokens === false ? null : loadTokens(typeof opts.tokens === 'string' ? opts.tokens : undefined);
+  // A declared system also declares its floors: if you say your smallest type is
+  // 12px and your smallest target is 24px, those are the numbers iris holds you to.
+  const cfg = { ...DEFAULTS,
+    ...(tokens ? { minFont: tokens.minFont ?? DEFAULTS.minFont, minTap: tokens.minTap ?? DEFAULTS.minTap,
+                   contrastAA: tokens.contrastAA ?? DEFAULTS.contrastAA } : {}),
+    ...opts };
   const session = await open();
   const shots = [];
   let design = null;
@@ -72,7 +90,7 @@ export async function look(target, opts = {}) {
         // Taste is a property of the design, not of the window it is shown in — so
         // measure the scales once, on the widest render, rather than six times.
         if (opts.critique !== false && !design && vp === viewports[viewports.length - 1]) {
-          design = await session.page.evaluate(critiquePage, { grid: +opts.grid || 4 });
+          design = await session.page.evaluate(critiquePage, { grid: +opts.grid || 4, tokens });
         }
         shots.push({
           viewport: vp, theme, file, path: join(dir, file), bytes: png.length,
@@ -86,6 +104,41 @@ export async function look(target, opts = {}) {
   const run = summarise({ id: runId, kind: 'look', target, url, dir, shots, design });
   writeFileSync(join(dir, 'run.json'), JSON.stringify(run, null, 2));
   return run;
+}
+
+// ── tokens: read the system a page is ALREADY using ──────────────────────────
+// Writing a design system from nothing is a blank page. Reading one out of a page
+// you already like is a starting point you can edit. This is the bootstrap.
+export async function extractTokens(target, opts = {}) {
+  const url = toUrl(target);
+  const session = await open();
+  let scales;
+  try {
+    await session.page.viewport(VIEWPORTS.desktop);
+    await session.page.theme(opts.theme || 'dark');
+    await session.page.goto(url);
+    scales = (await session.page.evaluate(critiquePage, { grid: 4 })).scales;
+  } finally { await session.close(); }
+
+  // Keep what the page actually leans on. A size used once is a decision nobody
+  // made; a size used forty times is the system, whether or not anyone wrote it down.
+  const keep = (list, minUses) => list.filter((x) => x.count >= minUses).map((x) => x.value);
+  const uses = (list) => list.reduce((a, x) => a + x.count, 0);
+  const type = keep(scales.type, Math.max(2, uses(scales.type) * 0.02));
+  const radius = keep(scales.radius, Math.max(2, uses(scales.radius) * 0.05));
+  // The grid is whichever of 8/4/2 the page's spacing most nearly obeys.
+  const spaceVals = scales.spacing.flatMap((x) => Array(Math.min(x.count, 50)).fill(x.value));
+  const fit = (g) => spaceVals.filter((v) => v % g === 0).length / (spaceVals.length || 1);
+  const grid = [8, 4, 2].find((g) => fit(g) >= 0.8) || 4;
+
+  return {
+    name: opts.name || 'extracted',
+    type: type.length ? type : [12, 14, 16, 20],
+    spacing: { grid },
+    radius: radius.length ? radius : [8, 12],
+    minFont: 12, minTap: 24, contrastAA: 4.5,
+    _observed: { type: scales.type, radius: scales.radius, grid_fit: { 8: +fit(8).toFixed(2), 4: +fit(4).toFixed(2), 2: +fit(2).toFixed(2) } },
+  };
 }
 
 // ── play: a game is a loop, so watch the loop ────────────────────────────────

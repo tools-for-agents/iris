@@ -290,11 +290,28 @@ export function readFrames() {
 // These are NOT defects. They do not fail a build. They tell you where the design
 // is drifting.
 export function critiquePage(opts) {
-  const { grid = 4, maxType = 6, maxRadius = 4, maxInk = 8 } = opts || {};
+  const { maxType = 6, maxRadius = 4, maxInk = 8, tokens = null } = opts || {};
+  // A declared system beats a heuristic. Without tokens, iris can only ask "are you
+  // consistent with YOURSELF" — which catches drift but cannot tell you what you
+  // should have picked. With them it can say the useful thing: 13px is not in your
+  // scale, and the nearest ones that are are 12 and 14.
+  const grid = tokens?.spacing?.grid ?? opts?.grid ?? 4;
   const F = [];
   const px = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? Math.round(n * 10) / 10 : null; };
+  const where = (el) => {
+    if (!el) return null;
+    const t = el.tagName.toLowerCase();
+    if (el.id) return t + '#' + el.id;
+    const c = (typeof el.className === 'string' && el.className.trim())
+      ? '.' + el.className.trim().split(/\s+/).slice(0, 2).join('.') : '';
+    return t + c;
+  };
+  // Carry an example selector with every value. A finding that says "6px x20" and
+  // nothing else sends you hunting a number through a stylesheet — and some of them
+  // are not IN the stylesheet: a <button> with no padding declared inherits 6px from
+  // the browser's own defaults, so the value you never wrote is still yours to own.
   const bump = (m, k, el) => { if (k == null) return; const e = m.get(k) || { n: 0, eg: [] };
-    e.n++; if (e.eg.length < 3 && el) e.eg.push(el); m.set(k, e); };
+    e.n++; const w = where(el); if (e.eg.length < 3 && w && !e.eg.includes(w)) e.eg.push(w); m.set(k, e); };
   const sortNum = (m) => [...m.entries()].sort((a, b) => a[0] - b[0]);
   const top = (m, k = 4) => [...m.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, k);
 
@@ -316,7 +333,12 @@ export function critiquePage(opts) {
     }
     // Only radii that are actually drawn — a radius on a thing with no edge is invisible.
     if (s.backgroundColor !== 'rgba(0, 0, 0, 0)' || s.borderTopWidth !== '0px') {
-      const rad = px(s.borderTopLeftRadius);
+      let rad = px(s.borderTopLeftRadius);
+      // A `border-radius: 50%` computes to half the box — 50px on a 100px avatar,
+      // 9px on an 18px dot. Counting those as distinct radii made every circle in
+      // the page look like its own invented corner size. A circle is not an eighth
+      // radius; it is the pill token, and there is one of it.
+      if (rad && rad >= Math.min(r.width, r.height) / 2 - 1) rad = 999;
       if (rad) bump(radii, rad, el);
     }
     for (const p of ['paddingTop', 'paddingBottom', 'paddingLeft', 'paddingRight',
@@ -324,6 +346,42 @@ export function critiquePage(opts) {
       const v = px(s[p]);
       if (v && v >= 3 && v <= 96) bump(spaces, v, el);   // <3px is a hairline, >96 is a layout gesture
     }
+  }
+
+  // ── graded against a declared system ───────────────────────────────────────
+  if (tokens) {
+    const near = (v, list) => list.reduce((a, b) => (Math.abs(b - v) < Math.abs(a - v) ? b : a));
+    const usedT = sortNum(fonts);
+    const offT = tokens.type ? usedT.filter(([k]) => !tokens.type.includes(k)) : [];
+    if (offT.length) {
+      F.push({ rule: 'off-scale-type', severity: 'design',
+        detail: `${offT.map(([k, v]) => `${k}px (x${v.n} -> ${near(k, tokens.type)}px) on ${v.eg.join(', ') || '?'}`).join('; ')} `
+          + `— not in the type scale you declared: ${tokens.type.join(', ')}px.`,
+        values: offT.map(([k, v]) => ({ value: k, count: v.n, nearest: near(k, tokens.type), at: v.eg })) });
+    }
+    const usedR = sortNum(radii);
+    const offR = tokens.radius ? usedR.filter(([k]) => !tokens.radius.includes(k)) : [];
+    if (offR.length) {
+      F.push({ rule: 'off-scale-radius', severity: 'design',
+        detail: `${offR.map(([k, v]) => `${k}px (x${v.n} -> ${near(k, tokens.radius)}px) on ${v.eg.join(', ') || '?'}`).join('; ')} `
+          + `— not in your radius scale: ${tokens.radius.join(', ')}px.`,
+        values: offR.map(([k, v]) => ({ value: k, count: v.n, nearest: near(k, tokens.radius), at: v.eg })) });
+    }
+    const offS = sortNum(spaces).filter(([k]) => k % grid !== 0);
+    if (offS.length) {
+      F.push({ rule: 'off-grid-spacing', severity: 'design',
+        detail: `${offS.map(([k, v]) => `${k}px (x${v.n} -> ${Math.round(k / grid) * grid}px) on ${v.eg.join(', ') || '?'}`).join('; ')} `
+          + `— off the ${grid}px grid you declared.`,
+        values: offS.map(([k, v]) => ({ value: k, count: v.n, nearest: Math.round(k / grid) * grid, at: v.eg })) });
+    }
+    // With a system declared, the generic "are you consistent with yourself" checks
+    // are noise — the system already answered that question.
+    return { findings: F, tokens: tokens.name || true, scales: {
+      type: sortNum(fonts).map(([k, v]) => ({ value: k, count: v.n })),
+      radius: sortNum(radii).map(([k, v]) => ({ value: k, count: v.n })),
+      spacing: sortNum(spaces).map(([k, v]) => ({ value: k, count: v.n })),
+      weights: [...weights.keys()].sort(),
+    } };
   }
 
   // ── the type scale ─────────────────────────────────────────────────────────

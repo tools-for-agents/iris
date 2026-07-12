@@ -104,7 +104,9 @@ test('a bad viewport or theme name fails loudly instead of silently rendering th
 // "did anyone DESIGN it" — because a page can be entirely un-broken and still look
 // like a machine wrote it, and that is what the user actually complains about.
 test('a page that works perfectly and was designed by nobody is called out for it', needsChrome, async () => {
-  const run = await iris.look(fixture('sloppy.html'), { viewports: 'desktop', themes: 'light' });
+  // tokens:false on purpose — this is the HEURISTIC path, for a project that has not
+  // declared a system. (With one declared, the answer is sharper; see the last test.)
+  const run = await iris.look(fixture('sloppy.html'), { viewports: 'desktop', themes: 'light', tokens: false });
 
   // Nothing is WRONG with it. That is the entire point of the fixture.
   assert.equal(run.summary.passed, true, 'sloppy.html is not broken — it renders, it fits, it is readable');
@@ -121,7 +123,7 @@ test('a page that works perfectly and was designed by nobody is called out for i
 });
 
 test('a page on a scale is left alone — the critique is not a lint that fires on everything', needsChrome, async () => {
-  const run = await iris.look(fixture('clean.html'), { viewports: 'desktop', themes: 'light' });
+  const run = await iris.look(fixture('clean.html'), { viewports: 'desktop', themes: 'light', tokens: false });
   assert.deepEqual(run.design.findings, [],
     `a page on a grid with one radius and a real type scale must draw no comment, got: ${JSON.stringify(run.design.findings)}`);
   // and it still reports the scales it measured, so you can see what you actually built
@@ -211,4 +213,35 @@ test('when the picture moves on its own, iris declines to claim the keys work', 
   assert.match(iris.report(run), /input unproven/);
   // …and declining is not a failure. It is a fact about the game, not a defect.
   assert.equal(run.summary.high, 0);
+});
+
+// The generic critique can only ask "are you consistent with YOURSELF" — which
+// catches drift but cannot tell you what you should have chosen. A declared system
+// can. This page is perfectly consistent, and consistent with a system nobody
+// declared: 15px type, 10px radii, 18px spacing. Every value is named, with the one
+// it should have been.
+test('a page graded against a declared system is told exactly which value to use instead', needsChrome, async () => {
+  const run = await iris.look(fixture('offsystem.html'),
+    { viewports: 'desktop', themes: 'dark', tokens: fixture('tokens.json') });
+
+  const f = Object.fromEntries(run.design.findings.map((x) => [x.rule, x]));
+
+  const t = f['off-scale-type'];
+  assert.ok(t, '15px and 26px are not in the declared scale');
+  assert.ok(t.values.some((v) => v.value === 15 && v.nearest === 14), 'and it says 15 → 14');
+  assert.ok(t.values.every((v) => v.at?.length), 'every value names where it lives — a bare number sends you hunting');
+
+  const r = f['off-scale-radius'];
+  assert.ok(r.values.some((v) => v.value === 10 && v.nearest === 8), '10px radius → 8px');
+
+  const g = f['off-grid-spacing'];
+  assert.ok(g.values.some((v) => v.value === 18 && v.nearest === 20), '18px → the 4px grid');
+
+  // The system's own floors are what iris holds you to.
+  assert.equal(run.summary.high, 0, 'nothing here is BROKEN — that is the whole point');
+
+  // And without the system, the same page draws almost no comment: it IS consistent.
+  const loose = await iris.look(fixture('offsystem.html'), { viewports: 'desktop', themes: 'dark', tokens: false });
+  assert.ok(loose.design.findings.length < run.design.findings.length,
+    'the heuristic sees a tidy page; only the declared system sees a wrong one');
 });
