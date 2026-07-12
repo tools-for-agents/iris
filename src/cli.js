@@ -36,6 +36,18 @@ try {
     // big enough to still be draining. A checker that truncates its findings exactly
     // when it has findings is worse than one that never runs.
     if (!run.summary.passed) process.exitCode = 1;
+    // --strict also fails the build on design drift. Off by default, because "this is
+    // broken" and "nobody decided this" are different conversations and only the first
+    // one should stop a release. But once a kit IS on a system, drift is a regression
+    // like any other, and the only thing that keeps it from creeping back is a gate.
+    //
+    // This lives here, not in the GitHub action, because the action used to decide it
+    // by GREPPING THE HUMAN REPORT for the sentence "nobody decided it either" — a gate
+    // that silently stops gating the day someone rewords a headline.
+    if (flags['--strict'] && run.design?.findings?.length) {
+      process.stderr.write(`iris: ${run.design.findings.length} design findings and --strict is on\n`);
+      process.exitCode = 1;
+    }
   } else if (cmd === 'play') {
     if (!target) throw new Error('usage: iris play <url|file> [--keys ArrowLeft,Space]');
     const run = await iris.play(target, {
@@ -78,6 +90,7 @@ try {
       --full                             full-page screenshot, not just the fold
       --json                             the whole run as JSON
       --tokens <file>                    grade against a declared design system
+      --strict                           ALSO fail on design drift, not just defects
                                          (auto-loads ./iris.tokens.json or ./tokens.json)
 
   iris play <url|file>    for games: is the loop drawing, how fast, does it answer input

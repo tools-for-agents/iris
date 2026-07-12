@@ -27,6 +27,13 @@ inputs:
   name:
     description: 'Label for the uploaded screenshots.'
     default: 'iris'
+  tokens:
+    description: >-
+      A design system to grade against. A path in your repo, or "kit" for the
+      tools-for-agents system that ships with iris. Empty = auto-detect
+      ./tokens.json, and fall back to the heuristic (is this page consistent
+      with ITSELF) if there is none.
+    default: ''
   strict:
     description: 'Also fail on design drift (type scale, spacing grid, palette). Off by default — taste is a conversation, not a gate.'
     default: 'false'
@@ -45,15 +52,27 @@ runs:
         IRIS_CHROME: ${{ steps.chrome.outputs.chrome-path }}
         IRIS_OUT: ${{ runner.temp }}/iris-${{ inputs.name }}
       run: |
+        # The design system lives in ONE file (iris/tokens.json), and the action is
+        # already a checkout of iris — so every repo can grade against the kit's system
+        # without vendoring a copy of it. Seven copies of a design system is how you end
+        # up with seven design systems.
+        case "${{ inputs.tokens }}" in
+          '')   TOK=() ;;
+          kit)  TOK=(--tokens "${{ github.action_path }}/tokens.json") ;;
+          *)    TOK=(--tokens "${{ inputs.tokens }}") ;;
+        esac
+        # `--strict` is decided by the CLI, by counting design findings. It used to be
+        # decided HERE, by grepping the human report for the sentence "nobody decided it
+        # either" — a gate that silently stops gating the day someone rewords a headline.
+        [ "${{ inputs.strict }}" = "true" ] && STRICT=(--strict) || STRICT=()
+
         node "${{ github.action_path }}/src/cli.js" look "${{ inputs.url }}" \
-          --viewports "${{ inputs.viewports }}" --themes "${{ inputs.themes }}" | tee "$RUNNER_TEMP/iris.txt"
+          --viewports "${{ inputs.viewports }}" --themes "${{ inputs.themes }}" \
+          "${TOK[@]}" "${STRICT[@]}" | tee "$RUNNER_TEMP/iris.txt"
         code=${PIPESTATUS[0]}
         # The report is the useful artefact, so put it in the job summary where a
         # human will actually read it — not buried in a fold of the log.
         { echo '### 👁 iris'; echo '```'; cat "$RUNNER_TEMP/iris.txt"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-        if [ "${{ inputs.strict }}" = "true" ] && grep -q 'nobody decided it either' "$RUNNER_TEMP/iris.txt"; then
-          echo "::error::design drift (strict mode)"; code=1
-        fi
         exit $code
 
     - name: Hand over the pictures
