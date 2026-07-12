@@ -4,10 +4,11 @@
 //   iris play <url|file> [--seconds 3] [--frames 6] [--keys ArrowLeft,Space] [--json]
 //   iris runs [-k 20] | iris forget <run-id> | iris stats
 //   iris serve [--port 7990]
+import { readFileSync } from 'node:fs';
 import * as iris from './core.js';
 
 const [, , cmd, ...rest] = process.argv;
-const VALUE = new Set(['--viewports', '--themes', '--seconds', '--frames', '--keys', '--limit', '--port', '--wait', '--tokens', '--name', '-k']);
+const VALUE = new Set(['--viewports', '--themes', '--seconds', '--frames', '--keys', '--limit', '--port', '--wait', '--tokens', '--name', '-k', '--pre', '--pre-file']);
 const positionals = []; const flags = {};
 for (let i = 0; i < rest.length; i++) {
   const a = rest[i];
@@ -25,6 +26,9 @@ try {
       viewports: flags['--viewports'], themes: flags['--themes'],
       full: !!flags['--full'], wait: flags['--wait'] ? +flags['--wait'] : undefined,
       tokens: flags['--no-tokens'] ? false : flags['--tokens'],
+      // Put the page into a state before looking at it. Everything that takes a click
+      // to reach was, until now, a state iris had never rendered — and so never checked.
+      pre: flags['--pre-file'] ? readFileSync(flags['--pre-file'], 'utf8') : flags['--pre'],
     });
     out(flags['--json'] ? run : iris.report(run, { limit: flags['--limit'] ? +flags['--limit'] : 25 }));
     // A non-zero exit is what lets `iris look` sit in a loop or a pre-commit hook

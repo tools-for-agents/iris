@@ -31,6 +31,11 @@ const tools = [
       viewports: { type: 'string', description: 'Comma-separated: phone, tablet, desktop (default "phone,desktop")' },
       themes: { type: 'string', description: 'Comma-separated: dark, light (default both)' },
       full: { type: 'boolean', description: 'Capture the full page, not just the first screen' },
+      pre: { type: 'string', description: 'JavaScript to run in the page after it loads and BEFORE it is audited — use it to '
+        + 'put the page into a state you would otherwise have to click to reach: a disabled button, an empty list, an error '
+        + 'banner, a row toggled off. Those states are the ones that are broken, because they are the ones nobody ever looks '
+        + 'at. Example: "document.querySelectorAll(\'button\').forEach(b => b.disabled = true)". Throws if it fails, because '
+        + 'a state you could not reach is not a state that passed.' },
     }, required: ['target'] },
     run: async (a) => {
       const run = await iris.look(a.target, a);

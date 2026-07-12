@@ -522,3 +522,40 @@ test('text painted at 12% is not 18:1, whatever its declared colour says', needs
   const clean = await iris.look(fixture('clean.html'), { viewports: 'desktop', themes: 'dark' });
   assert.deepEqual(rule(clean, 'contrast'), [], 'a page with no fading is unaffected');
 });
+
+// ── A page is a state machine, and a URL lands you on exactly one of its states ─────
+test('--pre renders a state you would have to click to reach, and audits it there', needsChrome, async () => {
+  // Every check iris has ever run has seen ONE state: the one the URL boots into.
+  // Everything you must DO something to reach — a button gone disabled, a row toggled
+  // off, an error banner — was never rendered, so it was never measured. And those are
+  // exactly the states that are broken, because they are the states nobody looks at.
+  // (This is not hypothetical: every disabled control in the kit was unreadable, two of
+  // them at 1:1 — the exact colour of their own background — and three CI gates had been
+  // green over them for a month.)
+  const f = fixture('states.html');
+
+  // As it boots, this page is fine. That is the whole problem.
+  const boot = await iris.look(f, { viewports: 'desktop', themes: 'dark' });
+  assert.deepEqual(rule(boot, 'contrast'), [], 'nothing is wrong with the state the URL lands on');
+
+  // Put it into the states you can only reach by doing something.
+  const posed = await iris.look(f, { viewports: 'desktop', themes: 'dark',
+    pre: "document.getElementById('go').disabled = true; document.getElementById('r').classList.add('off')" });
+  const c = rule(posed, 'contrast');
+
+  assert.ok(c.some((v) => /button#go/.test(v.selector)), 'the disabled button is now visible to the audit');
+  assert.ok(c.some((v) => /#r\b/.test(v.selector)), 'and so is the row that was switched off');
+  assert.ok(c.every((v) => v.ratio < 3), `both are faded to nothing; got ${c.map((v) => v.ratio)}`);
+});
+
+test('a --pre that fails is an error, not a pass', needsChrome, async () => {
+  // The dangerous failure is not a crash, it is a no-op: a state script that quietly does
+  // nothing hands back a clean report for a state that was never rendered, and reads as
+  // proof the state is fine. So a state we could not reach must STOP the run.
+  await assert.rejects(
+    () => iris.look(fixture('states.html'), { viewports: 'desktop', themes: 'dark',
+      pre: "document.getElementById('does-not-exist').disabled = true" }),
+    /--pre failed/,
+    'reaching for an element that is not there must fail loudly',
+  );
+});

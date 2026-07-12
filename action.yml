@@ -37,6 +37,14 @@ inputs:
   strict:
     description: 'Also fail on design drift (type scale, spacing grid, palette). Off by default — taste is a conversation, not a gate.'
     default: 'false'
+  pre:
+    description: >-
+      JavaScript run in the page after it loads and BEFORE it is audited, to put it into a
+      state you would otherwise have to click to reach — a disabled button, a row toggled
+      off, an error banner. Your gate has only ever seen the state the URL boots into, and
+      the states it has never seen are the broken ones, because they are the ones nobody
+      ever looks at. Fails the job if it throws: a state you could not reach did not pass.
+    default: ''
 
 runs:
   using: composite
@@ -66,9 +74,12 @@ runs:
         # either" — a gate that silently stops gating the day someone rewords a headline.
         [ "${{ inputs.strict }}" = "true" ] && STRICT=(--strict) || STRICT=()
 
+        PRE=()
+        if [ -n "${{ inputs.pre }}" ]; then PRE=(--pre "${{ inputs.pre }}"); fi
+
         node "${{ github.action_path }}/src/cli.js" look "${{ inputs.url }}" \
           --viewports "${{ inputs.viewports }}" --themes "${{ inputs.themes }}" \
-          "${TOK[@]}" "${STRICT[@]}" | tee "$RUNNER_TEMP/iris.txt"
+          "${TOK[@]}" "${STRICT[@]}" "${PRE[@]}" | tee "$RUNNER_TEMP/iris.txt"
         code=${PIPESTATUS[0]}
         # The report is the useful artefact, so put it in the job summary where a
         # human will actually read it — not buried in a fold of the log.

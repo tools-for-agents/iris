@@ -144,6 +144,39 @@ export function gameDesign(canvases, game) {
 }
 
 // ── look: render it, and hand back the pixels ────────────────────────────────
+// EVERY CHECK IRIS HAS ONLY EVER SEEN ONE STATE: the one the URL boots into.
+//
+// A page is not a picture, it is a state machine, and a URL lands you on exactly one
+// of its states. Everything you have to *do something* to reach — a button that has
+// gone disabled, a card blocked by a dependency, a legend row toggled off, an error
+// banner after the API 500s — is a state iris could not render, and therefore a state
+// iris has never once measured, in any of the thousands of checks it has run.
+//
+// Those are precisely the states that are broken, and for the same reason: nobody
+// styles carefully what nobody ever looks at. I found the disabled-control bug (every
+// disabled button in the kit was unreadable; two were literally the colour of their own
+// background) only by hand-building a fake page, and the fake page's backdrop was WRONG,
+// so its numbers were wrong too. I was about to "fix" a contrast ratio that did not exist.
+//
+// The fix is not another fake page. It is to let the real page be put into the state
+// and audited there. `pre` runs a snippet in the loaded page before the audit — so a
+// state you have to reach becomes a state you can measure, with the real stylesheet,
+// the real ancestors and the real backdrop.
+//
+// It throws rather than warns: a state you could not reach is not a state that passed.
+async function applyPre(page, src) {
+  if (!src) return;
+  try {
+    await page.evaluate(async (js) => {
+      await (0, eval)(`(async () => { ${js} })()`);
+      // Let the state actually paint before anyone measures it.
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    }, src);
+  } catch (e) {
+    throw new Error(`--pre failed, so the state was never reached and NOTHING was audited: ${e.message}`);
+  }
+}
+
 export async function look(target, opts = {}) {
   const url = toUrl(target);
   const viewports = pickViewports(opts.viewports);
@@ -171,6 +204,7 @@ export async function look(target, opts = {}) {
         await session.page.theme(theme);
         session.page.console.length = 0;            // attribute console noise to the render that caused it
         await session.page.goto(url, { waitMs: opts.wait ?? 350 });
+        await applyPre(session.page, opts.pre);
         const png = await session.page.screenshot({ fullPage: !!opts.full });
         const file = `${vp}-${theme}.png`;
         writeFileSync(join(dir, file), png);
