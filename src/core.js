@@ -161,6 +161,7 @@ export async function look(target, opts = {}) {
     ...opts };
   const session = await open();
   const shots = [];
+  let canvases = [];
   let design = null;
   try {
     for (const vp of viewports) {
@@ -179,6 +180,11 @@ export async function look(target, opts = {}) {
         if (opts.critique !== false && !design && vp === viewports[viewports.length - 1]) {
           design = await session.page.evaluate(critiquePage, { grid: +opts.grid || 4, tokens });
         }
+        // `look` never looked inside a canvas. Every check it has — overlap, contrast,
+        // tap targets, the whole design system — reads the DOM, and a canvas is ONE
+        // element with ONE colour as far as the DOM knows. So a page that draws its
+        // content on a canvas got a full, confident audit of the frame around it.
+        if (!canvases.length) canvases = await session.page.evaluate(canvasHealth);
         shots.push({
           viewport: vp, theme, file, path: join(dir, file), bytes: png.length,
           violations: a ? a.violations : [], counts: a ? a.counts : {},
@@ -188,7 +194,26 @@ export async function look(target, opts = {}) {
     }
   } finally { await session.close(); }
 
-  const run = summarise({ id: runId, kind: 'look', target, url, dir, shots, design });
+  // WHAT THE EYE CANNOT SEE, IT MUST SAY IT CANNOT SEE.
+  //
+  // iris told me "✓ nothing broken" about a page whose hero was visibly wrong: the ring's
+  // labels were printed on top of its nodes. iris was RIGHT — every DOM check passed —
+  // and the page was still broken, because the ring is a canvas, and to the DOM a canvas
+  // is one element with one colour.
+  //
+  // A verdict that does not say what it covered invites you to stop looking. That is the
+  // most dangerous thing a checker can do, and it is the same failure as `input-unproven`,
+  // which iris already refuses to guess at. So: scope the verdict. If real pixels were
+  // drawn on a canvas, the headline says the checks are blind there, and says look.
+  const inked = canvases.filter((c) => (c.painted || 0) > 0.005);
+  const blind = inked.length ? {
+    canvases: inked.length,
+    painted: Math.max(...inked.map((c) => c.painted)),
+    why: 'a canvas is one element with one colour as far as the DOM knows, so every check above '
+       + '(overlap, contrast, tap targets, the design system) is structurally blind to what is drawn inside it',
+  } : null;
+
+  const run = summarise({ id: runId, kind: 'look', target, url, dir, shots, design, canvases, blind });
   writeFileSync(join(dir, 'run.json'), JSON.stringify(run, null, 2));
   return run;
 }
@@ -437,7 +462,20 @@ export function report(run, { limit = 25 } = {}) {
   } else {
     L.push(`   ${run.shots.length} renders (${[...new Set(run.shots.map((x) => x.viewport))].join(', ')} × ${[...new Set(run.shots.map((x) => x.theme))].join(', ')})`);
   }
-  L.push(s.passed ? '   ✓ nothing broken' : `   ${s.high} high · ${s.medium} medium · ${s.low} low · ${s.console_errors} console`);
+  // The headline must never claim more than was examined. "✓ nothing broken" on a page
+  // whose content is drawn on a canvas is TRUE and USELESS: every check above reads the
+  // DOM, and to the DOM a canvas is one element with one colour. It told me the kit's own
+  // hero was fine while its labels were printed on top of its nodes.
+  //
+  // A verdict that does not say what it covered invites you to stop looking, which is the
+  // most dangerous thing a checker can do.
+  if (s.passed && run.blind) {
+    L.push(`   ✓ nothing broken IN THE DOM — but ${run.blind.canvases > 1 ? `${run.blind.canvases} canvases are` : 'a canvas is'} drawing here,`);
+    L.push(`     and ${run.blind.why.split(', so ')[1] || 'the checks cannot see inside it'}.`);
+    L.push('     LOOK AT THE PICTURE. It is the only thing that can.');
+  } else {
+    L.push(s.passed ? '   ✓ nothing broken' : `   ${s.high} high · ${s.medium} medium · ${s.low} low · ${s.console_errors} console`);
+  }
 
   const order = { high: 0, medium: 1, low: 2 };
   const seen = new Map();

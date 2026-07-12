@@ -141,6 +141,26 @@ iris play ./game.html --tokens ./tokens.json --strict
   a bug report.
 ```
 
+## What the eye cannot see, it says it cannot see
+
+iris told me **`✓ nothing broken`** about a page whose hero was visibly wrong — the ring's labels were printed on top of its own nodes.
+
+iris was *right*. Every DOM check passed. And the page was still broken, because the ring is a **canvas**, and to the DOM a canvas is **one element with one colour**. Overlap, contrast, tap targets, the design system: all structurally blind to it.
+
+**The blindness is not the bug. The unqualified verdict is.** A verdict that does not say what it covered invites you to stop looking, which is the most dangerous thing a checker can do.
+
+```
+👁  ./index.html
+   ✓ nothing broken IN THE DOM — but a canvas is drawing here,
+     and every check above (overlap, contrast, tap targets, the design system)
+     is structurally blind to what is drawn inside it.
+     LOOK AT THE PICTURE. It is the only thing that can.
+```
+
+A page with no canvas gets the plain verdict — it is not lectured about a problem it does not have. This is the same refusal as `input-unproven`: **declining is not a failure. Guessing is.**
+
+And it is why `iris_look` hands the **actual PNG** back to the model as an MCP image block, rather than a paragraph about it. The report is what a machine can measure. The picture is what is left.
+
 ## For the agent (MCP)
 
 `iris_look` returns **the actual images** alongside the report, so the model sees its own output.

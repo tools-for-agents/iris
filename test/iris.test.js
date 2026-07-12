@@ -421,3 +421,29 @@ test('nothing the MCP server can reach is allowed to print to stdout', async () 
   assert.deepEqual(offenders, [],
     'stdout is the protocol — one stray print desyncs every agent session:\n  ' + offenders.join('\n  '));
 });
+
+// ── What the eye cannot see, it must say it cannot see ──────────────────────────
+test('a verdict that does not say what it covered invites you to stop looking', needsChrome, async () => {
+  // iris told me "✓ nothing broken" about a page whose hero was visibly wrong: the ring's
+  // labels were printed on top of its own nodes. iris was RIGHT — every DOM check passed —
+  // and the page was still broken, because the ring is a canvas, and to the DOM a canvas is
+  // ONE element with ONE colour. Overlap, contrast, tap targets, the whole design system:
+  // all structurally blind to it.
+  //
+  // The blindness is not the bug. The unqualified verdict is. It is the same failure as
+  // `input-unproven`, which iris already refuses to guess at.
+  const canvas = await iris.look(fixture('livegame.html'), { viewports: 'desktop', themes: 'dark' });
+  assert.ok(canvas.blind, 'a page drawing on a canvas is flagged as only partly examined');
+  assert.equal(canvas.blind.canvases, 1);
+
+  const said = iris.report(canvas);
+  assert.match(said, /nothing broken IN THE DOM/, 'the headline scopes itself to what it actually checked');
+  assert.match(said, /structurally blind/, 'and names why');
+  assert.match(said, /LOOK AT THE PICTURE/, 'and says the one thing that can see it');
+
+  // And it must not cry wolf: a page with no canvas gets the plain, unqualified verdict.
+  const dom = await iris.look(fixture('clean.html'), { viewports: 'desktop', themes: 'dark' });
+  assert.equal(dom.blind, null, 'nothing to be blind to here');
+  assert.match(iris.report(dom), /✓ nothing broken(?! IN THE DOM)/,
+    'an ordinary page is not lectured about canvases it does not have');
+});

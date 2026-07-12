@@ -672,6 +672,11 @@ export function canvasHealth() {
           const best = ink.reduce((m, x) => Math.max(m, ratio(lum(x.r, x.g, x.b), bgL)), 0);
           info.background = `rgb(${bg.r}, ${bg.g}, ${bg.b})`;
           info.ink_coverage = +((n - bg.n) / n).toFixed(4);
+          // How much of the canvas AREA is painted at all. ink_coverage is the share of the
+          // OPAQUE pixels that are not the commonest colour — on a transparent canvas that is
+          // not the same thing, and reporting it as "93% of the canvas" is a wrong number
+          // dressed as a measurement.
+          info.painted = +((n * step) / px).toFixed(4);
           info.best_contrast = +best.toFixed(2);
           info.readable_shapes = ink.filter((x) => ratio(lum(x.r, x.g, x.b), bgL) >= 3).length;
           info.shapes = ink.length;
