@@ -357,3 +357,14 @@ test('the alignment check does not fire on things working exactly as designed', 
       `${f} is aligned; got ${JSON.stringify((run.design?.findings || []).filter((x) => x.rule === 'almost-aligned'))}`);
   }
 });
+
+test('an element is only where you can SEE it — a card scrolled out of a kanban is not on the sidebar', needsChrome, async () => {
+  // getBoundingClientRect() does not know about clipping. It reports a card scrolled out
+  // the side of a kanban at the geometry it WOULD have had — which lands it on top of the
+  // sidebar. iris called the real agent-hq dashboard "text printing over text" for a chip
+  // that is not on the screen at all.
+  const run = await iris.look(fixture('scrolled.html'), { viewports: 'desktop', themes: 'dark' });
+  assert.deepEqual(rule(run, 'overlap'), [],
+    `the scrolled-out cards are inside a scroller, clipped, invisible; got ${JSON.stringify(rule(run, 'overlap'))}`);
+  assert.equal(run.summary.passed, true, 'a horizontal scroller is a design, not a defect');
+});

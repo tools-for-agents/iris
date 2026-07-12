@@ -1,0 +1,45 @@
+<!doctype html>
+<!-- A kanban next to a sidebar. Exactly the agent-hq dashboard, reduced.
+
+     The board is WIDER than its column and scrolls sideways on purpose — that is what
+     a kanban is. So the cards past the fourth one are outside the scroller's box: they
+     are not on the screen. You cannot see them. Nothing is on top of anything.
+
+     But getBoundingClientRect() does not know about clipping. It reports a card that
+     has been scrolled out of view at the geometry it WOULD have had, which lands it
+     squarely on top of the sidebar — and iris called this "text printing over text"
+     on the real dashboard, for a chip that is not being printed at all.
+
+     An element is only where you can actually SEE it. iris must say nothing here. -->
+<html lang="en"><head><meta charset="utf-8"><title>scrolled</title>
+<style>
+  body { margin:0; background:#0a0b0e; color:#e8ebf2; font:16px/1.6 system-ui,sans-serif;
+         display:grid; grid-template-columns:1fr 320px; height:100vh; }
+  main { overflow:auto; padding:16px; }              /* ← the scroller. This is the whole fixture. */
+  .board { display:flex; gap:16px; align-items:flex-start; }
+  .col { flex:none; width:260px; background:#12141a; border:1px solid #242832; border-radius:12px; padding:12px; }
+  .card { background:#181b22; border-radius:8px; padding:12px; margin:0 0 8px; font-size:14px; }
+  aside { border-left:1px solid #242832; background:#12141a; padding:16px; overflow:auto; }
+  aside li { font-size:14px; color:#9aa3b5; margin:0 0 12px; list-style:none; }
+  h2 { font-size:16px; margin:0 0 12px; }
+</style></head>
+<body>
+  <main>
+    <div class="board">
+      <div class="col"><h2>Backlog</h2><div class="card">A task that is on the screen</div></div>
+      <div class="col"><h2>Todo</h2><div class="card">Another task on the screen</div></div>
+      <div class="col"><h2>In Progress</h2><div class="card">Still on the screen</div></div>
+      <div class="col"><h2>Review</h2><div class="card">The edge of the screen</div></div>
+      <div class="col"><h2>Done</h2><div class="card">Scrolled out of view entirely</div></div>
+      <div class="col"><h2>Archive</h2><div class="card">Nowhere near the screen</div></div>
+    </div>
+  </main>
+  <aside>
+    <h2>Live feed</h2>
+    <ul>
+      <li>Something happened a moment ago</li>
+      <li>And something else happened after that</li>
+      <li>And a third thing, for good measure</li>
+    </ul>
+  </aside>
+</body></html>

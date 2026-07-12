@@ -266,9 +266,44 @@ export function auditPage(opts) {
     const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
     return ox > 2 && oy > 2 ? ox * oy : 0;
   };
+  //
+  // AN ELEMENT IS ONLY WHERE YOU CAN ACTUALLY SEE IT.
+  //
+  // getBoundingClientRect() does not know about clipping. A card that has been scrolled
+  // out the side of a kanban column reports its geometry exactly as if it were sitting on
+  // top of the sidebar next to it — and iris duly called the agent-hq dashboard "text
+  // printing over text", for a chip that is not on the screen at all. Nothing was over
+  // anything; the chip was inside a scroller, clipped away, invisible.
+  //
+  // So intersect every box with the clip region of its ancestors first. A box that
+  // survives to nothing is not a box.
+  const clipOf = (el) => {
+    let L = -Infinity, T0 = -Infinity, R = Infinity, B = Infinity;
+    for (let n = el.parentElement; n && n.nodeType === 1; n = n.parentElement) {
+      const s = getComputedStyle(n);
+      if (s.overflowX === 'visible' && s.overflowY === 'visible') continue;   // clips nothing
+      const c = n.getBoundingClientRect();
+      L = Math.max(L, c.left); T0 = Math.max(T0, c.top);
+      R = Math.min(R, c.right); B = Math.min(B, c.bottom);
+    }
+    return { left: L, top: T0, right: R, bottom: B };
+  };
+  const clipBox = (b, cl) => {
+    const left = Math.max(b.left, cl.left), top = Math.max(b.top, cl.top);
+    const right = Math.min(b.right, cl.right), bottom = Math.min(b.bottom, cl.bottom);
+    return (right - left > 1 && bottom - top > 1)
+      ? { left, top, right, bottom, width: right - left, height: bottom - top } : null;
+  };
   const T = texts.slice(0, 400).filter((t) => !layered(t.el))
-    .map((t) => { const boxes = boxesOf(t.el); return { ...t, boxes, ink: boxes.reduce((n, b) => n + b.width * b.height, 0) }; })
-    .filter((t) => t.ink > 0);
+    .map((t) => {
+      const cl = clipOf(t.el);
+      const boxes = boxesOf(t.el).map((b) => clipBox(b, cl)).filter(Boolean);
+      if (!boxes.length) return null;
+      const r = { left: Math.min(...boxes.map((b) => b.left)), top: Math.min(...boxes.map((b) => b.top)),
+        right: Math.max(...boxes.map((b) => b.right)), bottom: Math.max(...boxes.map((b) => b.bottom)) };
+      return { ...t, r, boxes, ink: boxes.reduce((n, b) => n + b.width * b.height, 0) };
+    })
+    .filter((t) => t && t.ink > 0);
   for (let i = 0; i < T.length; i++) {
     for (let j = i + 1; j < T.length; j++) {
       const a = T[i], b = T[j];
