@@ -165,9 +165,28 @@ class Page {
   // want to change what the app finds when it starts: a `fetch` that fails, an empty
   // localStorage, a clock at midnight. `--pre` runs after load, which is too late for any
   // of that, because by then the app has already asked its questions and got its answers.
+  // A BOOT SCRIPT THAT THROWS IS SILENT, AND THAT IS THE WORST THING IT COULD BE.
+  //
+  // `--pre` fails loudly. `--boot` did not: if the source threw — a typo, a mangled quote,
+  // an API that is not there yet — the page simply loaded WITHOUT the stub, the app talked
+  // to the real server, and the gate went on to audit a state it had never actually
+  // reached. It cost me a red CI and a long hunt: scout's "refused write" gate failed
+  // because the write was never refused; the boot script had died on the way in and said
+  // nothing, so the page happily fetched example.com for real.
+  //
+  // So the script now reports on itself. It records success or the error it died of, and
+  // the caller reads that back and refuses to audit a state that was never set up.
   async boot(src) {
-    const { identifier } = await this.send('Page.addScriptToEvaluateOnNewDocument', { source: src });
+    const wrapped = `try { ${src}\n window.__iris_boot = 'ok'; } catch (e) { window.__iris_boot = 'threw: ' + (e && e.message || e); }`;
+    const { identifier } = await this.send('Page.addScriptToEvaluateOnNewDocument', { source: wrapped });
     (this._boots ||= []).push(identifier);
+  }
+
+  // Read back what the boot script did. Undefined means it never ran at all — which is
+  // just as fatal, and just as invisible, as one that threw.
+  async bootVerdict() {
+    const r = await this.send('Runtime.evaluate', { expression: 'window.__iris_boot', returnByValue: true });
+    return r.result?.value;
   }
 
   async goto(url, { waitMs = 250, quietMs = 400, timeoutMs = 10000 } = {}) {

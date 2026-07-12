@@ -220,6 +220,16 @@ export async function look(target, opts = {}) {
         await session.page.theme(theme);
         session.page.console.length = 0;            // attribute console noise to the render that caused it
         await session.page.goto(url, { waitMs: opts.wait ?? 350 });
+        // Did the boot script actually happen? If it threw, the page loaded WITHOUT it —
+        // talking to the real server, in the state we were trying to replace — and every
+        // number after this point would be about a state we never reached.
+        if (opts.boot) {
+          const verdict = await session.page.bootVerdict();
+          if (verdict !== 'ok') {
+            throw new Error(`--boot never took effect (${verdict ?? 'it did not run at all'}), so the page `
+              + `booted against the REAL world and nothing below is about the state you asked for`);
+          }
+        }
         await applyPre(session.page, opts.pre, dir, `${vp}-${theme}-FAILED.png`);
         const png = await session.page.screenshot({ fullPage: !!opts.full });
         const file = `${vp}-${theme}.png`;
