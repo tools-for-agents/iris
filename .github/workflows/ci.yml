@@ -39,3 +39,5 @@ jobs:
           url: http://localhost:7990/
           viewports: phone,tablet,desktop
           name: iris-web
+          tokens: kit      # the kit's ONE design system — iris/tokens.json, not a copy
+          strict: true     # drift is a regression now; a gate is what keeps it from creeping back
