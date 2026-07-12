@@ -559,3 +559,26 @@ test('a --pre that fails is an error, not a pass', needsChrome, async () => {
     'reaching for an element that is not there must fail loudly',
   );
 });
+
+// ── The state where the server says no ─────────────────────────────────────────────
+test('--boot lands before the page\'s own scripts, so the API can be broken underneath it', needsChrome, async () => {
+  // `--pre` runs AFTER load, which is far too late to change what the app found when it
+  // started: by then it has already asked its questions and got its answers. `--boot` runs
+  // before the page's first line, which is the only place you can stand if you want to
+  // break the API and see what gets drawn when the server says no.
+  //
+  // This matters because EVERY data-driven UI is a shell that asks a server what to render,
+  // and most have never rendered the answer "no" — they render an empty room instead, which
+  // is indistinguishable from having no data. All seven tools in this kit did exactly that.
+  const f = fixture('asks-a-server.html');
+
+  // Prove the boot script actually took effect: the page's own fetch must see the stub.
+  // (If --boot were a no-op, this element would stay empty and the test would still pass —
+  // so assert on evidence the PAGE produced, not on the absence of an error.)
+  const run = await iris.look(f, { viewports: 'desktop', themes: 'dark',
+    boot: "window.fetch = () => Promise.resolve(new Response(JSON.stringify([{name:'the boot script got here first'}]),"
+        + "{status:200,headers:{'content-type':'application/json'}}));",
+    pre: "if (!document.getElementById('list').textContent.includes('got here first')) "
+       + "throw new Error('the page fetched for real — --boot arrived too late to matter')" });
+  assert.ok(run.summary, 'the page rendered what the boot script fed it');
+});

@@ -198,6 +198,10 @@ export async function look(target, opts = {}) {
   let spots = null;
   let design = null;
   try {
+    // `boot` lands before the app's first line runs, so it can change the world the app
+    // wakes up in — most usefully, break the API. Every one of these UIs is a shell that
+    // asks a server what to draw, and NOTHING has ever rendered the answer "no".
+    if (opts.boot) await session.page.boot(opts.boot);
     for (const vp of viewports) {
       for (const theme of themes) {
         await session.page.viewport(VIEWPORTS[vp]);

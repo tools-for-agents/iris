@@ -1,0 +1,13 @@
+<!doctype html><html><head><meta charset="utf-8"><title>asks a server</title>
+<style>body{background:#0d1017;color:#e6ebf5;padding:40px;font:16px system-ui}</style></head>
+<body>
+  <div id="list"></div>
+  <script>
+    // The shell every one of these tools is: ask the server what to draw.
+    // If the answer never comes, the page just... stays empty. Silently.
+    fetch('/api/items')
+      .then((r) => r.json())
+      .then((items) => { document.getElementById('list').textContent = items.map((i) => i.name).join(', '); })
+      .catch(() => {});   // and the failure is swallowed, so the room is simply empty
+  </script>
+</body></html>

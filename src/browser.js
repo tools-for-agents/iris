@@ -161,6 +161,15 @@ class Page {
   // that reports on a page it never saw finish is worse than no eye.
   //
   // So: wait for the network to actually go quiet, then for the images to decode.
+  // Run a script BEFORE the page's own scripts do — the only place you can stand if you
+  // want to change what the app finds when it starts: a `fetch` that fails, an empty
+  // localStorage, a clock at midnight. `--pre` runs after load, which is too late for any
+  // of that, because by then the app has already asked its questions and got its answers.
+  async boot(src) {
+    const { identifier } = await this.send('Page.addScriptToEvaluateOnNewDocument', { source: src });
+    (this._boots ||= []).push(identifier);
+  }
+
   async goto(url, { waitMs = 250, quietMs = 400, timeoutMs = 10000 } = {}) {
     const load = this.once('Page.loadEventFired', timeoutMs);
     this.inflight = 0;

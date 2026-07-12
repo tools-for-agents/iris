@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import * as iris from './core.js';
 
 const [, , cmd, ...rest] = process.argv;
-const VALUE = new Set(['--viewports', '--themes', '--seconds', '--frames', '--keys', '--limit', '--port', '--wait', '--tokens', '--name', '-k', '--pre', '--pre-file']);
+const VALUE = new Set(['--viewports', '--themes', '--seconds', '--frames', '--keys', '--limit', '--port', '--wait', '--tokens', '--name', '-k', '--pre', '--pre-file', '--boot']);
 const positionals = []; const flags = {};
 for (let i = 0; i < rest.length; i++) {
   const a = rest[i];
@@ -29,6 +29,9 @@ try {
       // Put the page into a state before looking at it. Everything that takes a click
       // to reach was, until now, a state iris had never rendered — and so never checked.
       pre: flags['--pre-file'] ? readFileSync(flags['--pre-file'], 'utf8') : flags['--pre'],
+      // Runs BEFORE the page's own scripts — the only place to stand if you want to break
+      // the API and see what the app draws when the server says no.
+      boot: flags['--boot'],
     });
     out(flags['--json'] ? run : iris.report(run, { limit: flags['--limit'] ? +flags['--limit'] : 25 }));
     // A non-zero exit is what lets `iris look` sit in a loop or a pre-commit hook

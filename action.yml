@@ -37,6 +37,15 @@ inputs:
   strict:
     description: 'Also fail on design drift (type scale, spacing grid, palette). Off by default — taste is a conversation, not a gate.'
     default: 'false'
+  boot:
+    description: >-
+      JavaScript run BEFORE the page's own scripts do — the only place you can stand if you
+      want to change the world the app wakes up in. Its main use is to break the API
+      (stub `fetch` to return 500) and see what the app draws when the server says no.
+      Every data-driven UI is a shell that asks a server what to render, and most have
+      never rendered the answer "no" — they render an empty room instead, which is
+      indistinguishable from having no data.
+    default: ''
   pre:
     description: >-
       JavaScript run in the page after it loads and BEFORE it is audited, to put it into a
@@ -76,10 +85,12 @@ runs:
 
         PRE=()
         if [ -n "${{ inputs.pre }}" ]; then PRE=(--pre "${{ inputs.pre }}"); fi
+        BOOT=()
+        if [ -n "${{ inputs.boot }}" ]; then BOOT=(--boot "${{ inputs.boot }}"); fi
 
         node "${{ github.action_path }}/src/cli.js" look "${{ inputs.url }}" \
           --viewports "${{ inputs.viewports }}" --themes "${{ inputs.themes }}" \
-          "${TOK[@]}" "${STRICT[@]}" "${PRE[@]}" | tee "$RUNNER_TEMP/iris.txt"
+          "${TOK[@]}" "${STRICT[@]}" "${PRE[@]}" "${BOOT[@]}" | tee "$RUNNER_TEMP/iris.txt"
         code=${PIPESTATUS[0]}
         # The report is the useful artefact, so put it in the job summary where a
         # human will actually read it — not buried in a fold of the log.
