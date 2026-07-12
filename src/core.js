@@ -16,7 +16,7 @@ import { createHash } from 'node:crypto';
 import { join, resolve, isAbsolute } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { open, findChrome } from './browser.js';
-import { auditPage, critiquePage, canvasHealth, instrumentFrames, readFrames } from './audit.js';
+import { auditPage, critiquePage, canvasHealth, blindSpots, instrumentFrames, readFrames } from './audit.js';
 
 export const OUT = () => process.env.IRIS_OUT || './.iris';
 
@@ -162,6 +162,7 @@ export async function look(target, opts = {}) {
   const session = await open();
   const shots = [];
   let canvases = [];
+  let spots = null;
   let design = null;
   try {
     for (const vp of viewports) {
@@ -185,6 +186,7 @@ export async function look(target, opts = {}) {
         // element with ONE colour as far as the DOM knows. So a page that draws its
         // content on a canvas got a full, confident audit of the frame around it.
         if (!canvases.length) canvases = await session.page.evaluate(canvasHealth);
+        if (!spots) spots = await session.page.evaluate(blindSpots);
         shots.push({
           viewport: vp, theme, file, path: join(dir, file), bytes: png.length,
           violations: a ? a.violations : [], counts: a ? a.counts : {},
@@ -206,12 +208,19 @@ export async function look(target, opts = {}) {
   // which iris already refuses to guess at. So: scope the verdict. If real pixels were
   // drawn on a canvas, the headline says the checks are blind there, and says look.
   const inked = canvases.filter((c) => (c.painted || 0) > 0.005);
-  const blind = inked.length ? {
-    canvases: inked.length,
-    painted: Math.max(...inked.map((c) => c.painted)),
-    why: 'a canvas is one element with one colour as far as the DOM knows, so every check above '
-       + '(overlap, contrast, tap targets, the design system) is structurally blind to what is drawn inside it',
-  } : null;
+  const frames = spots?.iframes || 0;
+  const reasons = [];
+  if (inked.length) {
+    reasons.push(`${inked.length > 1 ? `${inked.length} canvases are` : 'a canvas is'} drawing here, and a canvas is `
+      + `one element with one colour as far as the DOM knows`);
+  }
+  if (frames) {
+    reasons.push(`${frames > 1 ? `${frames} iframes are` : 'an iframe is'} embedded here, and every check runs against `
+      + `the TOP document — a frame is a separate one, audited by nobody`);
+  }
+  const blind = reasons.length
+    ? { canvases: inked.length, iframes: frames, reasons }
+    : null;
 
   const run = summarise({ id: runId, kind: 'look', target, url, dir, shots, design, canvases, blind });
   writeFileSync(join(dir, 'run.json'), JSON.stringify(run, null, 2));
@@ -469,12 +478,15 @@ export function report(run, { limit = 25 } = {}) {
   //
   // A verdict that does not say what it covered invites you to stop looking, which is the
   // most dangerous thing a checker can do.
-  if (s.passed && run.blind) {
-    L.push(`   ✓ nothing broken IN THE DOM — but ${run.blind.canvases > 1 ? `${run.blind.canvases} canvases are` : 'a canvas is'} drawing here,`);
-    L.push(`     and ${run.blind.why.split(', so ')[1] || 'the checks cannot see inside it'}.`);
+  if (s.passed) L.push(run.blind ? '   ✓ nothing broken IN WHAT I COULD SEE — and I could not see all of it:' : '   ✓ nothing broken');
+  else L.push(`   ${s.high} high · ${s.medium} medium · ${s.low} low · ${s.console_errors} console`);
+  // The gap is a gap whether or not something else failed. A page with one finding and an
+  // unaudited iframe has not been checked, it has been partly checked, and the difference
+  // is the whole point.
+  if (run.blind) {
+    if (!s.passed) L.push('   …and I could not see all of it:');
+    for (const r of run.blind.reasons) L.push(`     · ${r}.`);
     L.push('     LOOK AT THE PICTURE. It is the only thing that can.');
-  } else {
-    L.push(s.passed ? '   ✓ nothing broken' : `   ${s.high} high · ${s.medium} medium · ${s.low} low · ${s.console_errors} console`);
   }
 
   const order = { high: 0, medium: 1, low: 2 };

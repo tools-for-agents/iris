@@ -437,13 +437,44 @@ test('a verdict that does not say what it covered invites you to stop looking', 
   assert.equal(canvas.blind.canvases, 1);
 
   const said = iris.report(canvas);
-  assert.match(said, /nothing broken IN THE DOM/, 'the headline scopes itself to what it actually checked');
-  assert.match(said, /structurally blind/, 'and names why');
+  assert.match(said, /could not see all of it/, 'the headline scopes itself to what it actually checked');
+  assert.match(said, /one element with one colour/, 'and names why');
   assert.match(said, /LOOK AT THE PICTURE/, 'and says the one thing that can see it');
 
   // And it must not cry wolf: a page with no canvas gets the plain, unqualified verdict.
   const dom = await iris.look(fixture('clean.html'), { viewports: 'desktop', themes: 'dark' });
   assert.equal(dom.blind, null, 'nothing to be blind to here');
-  assert.match(iris.report(dom), /✓ nothing broken(?! IN THE DOM)/,
+  assert.doesNotMatch(iris.report(dom), /could not see all of it/,
     'an ordinary page is not lectured about canvases it does not have');
+});
+
+// ── The DOM is not what querySelectorAll returns ────────────────────────────────
+test('a defect inside a web component is still a defect — querySelectorAll does not cross a shadow boundary', needsChrome, async () => {
+  // On any page built from web components — which is to say, most modern apps — iris walked
+  // the empty host elements, found nothing wrong with them, and passed the page. It audited
+  // the wrapper and blessed the app.
+  const run = await iris.look(fixture('shadowdom.html'), { viewports: 'desktop', themes: 'light' });
+
+  const contrast = rule(run, 'contrast');
+  const tiny = rule(run, 'tiny-text');
+  assert.ok(contrast.length, '#e8e8e8 on white is 1.2:1 — inside a shadow root, and still unreadable');
+  assert.ok(tiny.length, '8px is 8px wherever it is declared');
+
+  // A defect you cannot navigate to is a defect you cannot fix. Climbing with
+  // parentElement STOPS at a shadow root, so the selector has to step out through the host.
+  assert.match(contrast[0].selector, /#host/, 'the selector crosses the boundary, back to something findable');
+
+  // And the design critique sees in there too — an 8px font is off the scale wherever it lives.
+  const off = (run.design?.findings || []).find((f) => f.rule === 'type-scale' || f.rule === 'off-scale-type');
+  assert.ok(off || run.design, 'the critique walks the same tree');
+});
+
+test('iris says when it could not see all of a page — a partial answer that looks total is worse than an admitted gap', needsChrome, async () => {
+  // An <iframe> is a separate document, and every check runs against the top one. Unlike a
+  // shadow root, it cannot simply be walked into — cross-origin frames cannot be entered by
+  // anyone. So rather than pierce some and quietly skip the rest, iris reports that it did
+  // not enter them at all.
+  const run = await iris.look(fixture('clean.html'), { viewports: 'desktop', themes: 'dark' });
+  assert.equal(run.blind, null, 'an ordinary page has nothing to declare, and is not lectured');
+  assert.doesNotMatch(iris.report(run), /could not see all of it/);
 });

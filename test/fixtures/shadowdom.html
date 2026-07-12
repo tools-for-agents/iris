@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- Everything wrong with this page is inside a shadow root.
+     Which is to say: everything wrong with this page is inside a web component, which is
+     how most modern apps are built.
+
+     `document.body.querySelectorAll('*')` DOES NOT CROSS A SHADOW BOUNDARY. So iris walked
+     the empty host <div>, found nothing wrong with it, and said "✓ nothing broken" — about
+     a page with 8px text at 1.2:1 on it. It audited the wrapper and passed the app.
+
+     This is NOT the canvas problem. A canvas cannot be read from the DOM at all, and iris
+     can only declare that it cannot see. This CAN be read; it just needed walking through
+     the door instead of past it.
+
+     Every finding here must come back with a selector that crosses the boundary
+     (`div#host > p`), because a defect you cannot navigate to is a defect you cannot fix. -->
+<html lang="en"><head><meta charset="utf-8"><title>shadow dom</title>
+<style>body { margin:0; background:#fff; color:#111; font:16px/1.6 system-ui,sans-serif; padding:24px; }</style>
+</head>
+<body>
+  <h1>The app is in here</h1>
+  <div id="host"></div>
+<script>
+  const sr = document.getElementById('host').attachShadow({ mode: 'open' });
+  sr.innerHTML = `
+    <style>
+      p    { color:#e8e8e8; font-size:8px; }   /* 1.2:1 on white, and 8px. Unreadable twice over. */
+      .pip { width:14px; height:14px; border:0; padding:0; }
+    </style>
+    <p>This paragraph is 8px and #e8e8e8 on white. Nobody can read it, and nobody could see it either.</p>
+    <button class="pip">×</button>
+  `;
+</script>
+</body></html>

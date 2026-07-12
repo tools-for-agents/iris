@@ -10,6 +10,25 @@
 // browser globals — no imports, no closure over module scope.
 export function auditPage(opts) {
   const { mobile, minTap, minFont, contrastAA } = opts;
+  // `querySelectorAll('*')` DOES NOT CROSS A SHADOW BOUNDARY. On any page built from web
+  // components — which is to say, most modern apps — iris walked the empty wrapper
+  // elements, found nothing wrong with them, and said "✓ nothing broken". Proven on a page
+  // where EVERYTHING was broken (8px text at 1.2:1, a button 1200px off the edge, all of it
+  // in one shadow root): iris audited the host div, which is empty, and passed the page.
+  //
+  // This is not the canvas problem. A canvas cannot be read from the DOM at all. THIS CAN —
+  // it just needed walking through the door instead of past it.
+  //
+  // (A CLOSED shadow root returns null from `.shadowRoot`: it cannot be entered, or even
+  // counted, from outside. There is nothing to declare — it is invisible to the page too.)
+  const deepAll = (root, out) => {
+    for (const el of root.querySelectorAll('*')) {
+      out.push(el);
+      if (el.shadowRoot) deepAll(el.shadowRoot, out);
+    }
+    return out;
+  };
+
   // Declared up here, not next to checkTap: checkTap is hoisted and called from the
   // element loop above its own definition, so a `const` beside it sits in the
   // temporal dead zone and the whole audit throws.
@@ -24,7 +43,10 @@ export function auditPage(opts) {
   function sel(el) {
     if (!el || el === document.documentElement) return 'html';
     const parts = [];
-    for (let n = el; n && n.nodeType === 1 && parts.length < 4; n = n.parentElement) {
+    // Climbing with parentElement STOPS at a shadow root, so a finding inside a component
+    // used to report a selector with no route to it. Step out through the host.
+    const up = (n) => n.parentElement || (n.getRootNode() instanceof ShadowRoot ? n.getRootNode().host : null);
+    for (let n = el; n && n.nodeType === 1 && parts.length < 4; n = up(n)) {
       let s = n.tagName.toLowerCase();
       if (n.id) { parts.unshift(s + '#' + n.id); break; }
       const cls = (n.className && typeof n.className === 'string')
@@ -151,7 +173,7 @@ export function auditPage(opts) {
       detail: `the page scrolls horizontally by ${slop}px — content is wider than the ${W}px viewport` });
   }
 
-  const all = [...document.body.querySelectorAll('*')].slice(0, 4000);
+  const all = deepAll(document.body, []).slice(0, 4000);
   const texts = [];
 
   for (const el of all) {
@@ -377,6 +399,25 @@ export function readFrames() {
 // is drifting.
 export function critiquePage(opts) {
   const { maxType = 6, maxRadius = 4, maxInk = 8, tokens = null } = opts || {};
+  // `querySelectorAll('*')` DOES NOT CROSS A SHADOW BOUNDARY. On any page built from web
+  // components — which is to say, most modern apps — iris walked the empty wrapper
+  // elements, found nothing wrong with them, and said "✓ nothing broken". Proven on a page
+  // where EVERYTHING was broken (8px text at 1.2:1, a button 1200px off the edge, all of it
+  // in one shadow root): iris audited the host div, which is empty, and passed the page.
+  //
+  // This is not the canvas problem. A canvas cannot be read from the DOM at all. THIS CAN —
+  // it just needed walking through the door instead of past it.
+  //
+  // (A CLOSED shadow root returns null from `.shadowRoot`: it cannot be entered, or even
+  // counted, from outside. There is nothing to declare — it is invisible to the page too.)
+  const deepAll = (root, out) => {
+    for (const el of root.querySelectorAll('*')) {
+      out.push(el);
+      if (el.shadowRoot) deepAll(el.shadowRoot, out);
+    }
+    return out;
+  };
+
   // A declared system beats a heuristic. Without tokens, iris can only ask "are you
   // consistent with YOURSELF" — which catches drift but cannot tell you what you
   // should have picked. With them it can say the useful thing: 13px is not in your
@@ -402,7 +443,7 @@ export function critiquePage(opts) {
   const top = (m, k = 4) => [...m.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, k);
 
   const fonts = new Map(), radii = new Map(), spaces = new Map(), inks = new Map(), weights = new Map();
-  const els = [...document.body.querySelectorAll('*')].slice(0, 3000);
+  const els = deepAll(document.body, []).slice(0, 3000);
   for (const el of els) {
     const r = el.getBoundingClientRect();
     if (r.width < 1 || r.height < 1) continue;
@@ -691,4 +732,17 @@ export function canvasHealth() {
     out.push(info);
   }
   return out;
+}
+
+
+// What iris CANNOT see, so that it can say so instead of implying it looked.
+//
+// An <iframe> is a separate document. Every check here runs against the top one, so an
+// app embedded in a frame — a widget, an editor, a preview pane, an ad — is audited by
+// nobody, and the page still comes back "✓ nothing broken". Same-origin frames could be
+// entered; cross-origin ones cannot, ever, by anyone. Rather than pierce some and quietly
+// skip the rest, iris reports that it did not enter them at all. A partial answer that
+// looks total is worse than an admitted gap.
+export function blindSpots() {
+  return { iframes: document.querySelectorAll('iframe').length };
 }
