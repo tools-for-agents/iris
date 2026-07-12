@@ -20,6 +20,10 @@
   }
   * { box-sizing:border-box; }
   body { margin: 0; padding-bottom: 44px; background:var(--bg); color:var(--txt); font:14px/1.6 system-ui,-apple-system,sans-serif; }
+  /* A <p> with no declared margin takes 1em from the BROWSER's stylesheet — which here
+     is 14px, off the 4px grid we declare. iris caught this on its own page, the first
+     time strict was switched on. A value nobody wrote is still a value you own. */
+  p { margin: 0 0 16px; }
 
   header { display:flex; align-items:center; gap: 16px; padding: 12px 20px; border-bottom:1px solid var(--line); background:var(--panel); position:sticky; top:0; z-index:10; }
   .logo { display:flex; align-items:center; gap: 8px; flex:none; }
