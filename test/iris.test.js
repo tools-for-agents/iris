@@ -582,3 +582,20 @@ test('--boot lands before the page\'s own scripts, so the API can be broken unde
        + "throw new Error('the page fetched for real — --boot arrived too late to matter')" });
   assert.ok(run.summary, 'the page rendered what the boot script fed it');
 });
+
+// ── The failure path is a state too, and it was rendering nothing ──────────────────
+test('when --pre fails, it hands you the picture of the page that failed it', needsChrome, async () => {
+  // The first cut threw before the screenshot, so a failed assertion produced NO IMAGE —
+  // iris, of all things, went blind exactly when you most needed to see. I hit it within
+  // the hour: --pre asserted that a slow page says it is loading, six tools failed, and
+  // every run directory was EMPTY. The verdict told me something was wrong and then
+  // refused to show me what.
+  const err = await iris.look(fixture('clean.html'), { viewports: 'desktop', themes: 'dark',
+    pre: "throw new Error('nope')" }).then(() => null, (e) => e);
+
+  assert.ok(err, 'a failing --pre still fails the run');
+  const shot = /(\S+FAILED\.png)/.exec(err.message)?.[1];
+  assert.ok(shot, `the error names a screenshot; got: ${err.message.split('\n')[0]}`);
+  assert.ok(existsSync(shot), 'and the screenshot is really on disk, not just named');
+  assert.ok(statSync(shot).size > 1000, 'and it is a real picture, not an empty file');
+});

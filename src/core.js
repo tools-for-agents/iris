@@ -164,7 +164,13 @@ export function gameDesign(canvases, game) {
 // the real ancestors and the real backdrop.
 //
 // It throws rather than warns: a state you could not reach is not a state that passed.
-async function applyPre(page, src) {
+//
+// AND IT HANDS YOU THE PICTURE ON THE WAY OUT. The first version of this threw before the
+// screenshot, so when the assertion failed you got no image at all — iris, of all things,
+// went blind exactly when you most needed to see. (I hit it inside an hour: `--pre` asserted
+// a slow page says it is loading, six tools failed, and every run directory was EMPTY.)
+// The failure path is a state too, and it was rendering nothing.
+async function applyPre(page, src, dir, file) {
   if (!src) return;
   try {
     await page.evaluate(async (js) => {
@@ -173,7 +179,13 @@ async function applyPre(page, src) {
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     }, src);
   } catch (e) {
-    throw new Error(`--pre failed, so the state was never reached and NOTHING was audited: ${e.message}`);
+    let shot = '';
+    try {
+      const png = await page.screenshot();
+      writeFileSync(join(dir, file), png);
+      shot = `\n    …and here is what the page looked like when it failed: ${join(dir, file)}`;
+    } catch { /* if we cannot even photograph it, the message is still worth having */ }
+    throw new Error(`--pre failed, so the state was never reached and NOTHING was audited: ${e.message}${shot}`);
   }
 }
 
@@ -208,7 +220,7 @@ export async function look(target, opts = {}) {
         await session.page.theme(theme);
         session.page.console.length = 0;            // attribute console noise to the render that caused it
         await session.page.goto(url, { waitMs: opts.wait ?? 350 });
-        await applyPre(session.page, opts.pre);
+        await applyPre(session.page, opts.pre, dir, `${vp}-${theme}-FAILED.png`);
         const png = await session.page.screenshot({ fullPage: !!opts.full });
         const file = `${vp}-${theme}.png`;
         writeFileSync(join(dir, file), png);
