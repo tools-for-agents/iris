@@ -57,6 +57,17 @@ export function auditPage(opts) {
   }
   const label = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60);
 
+  // EMOJI ARE PAINTED BY THE FONT, in its own colour layers. `color` and `fill` do not
+  // touch them. So measuring either against the background measures a colour that never
+  // reaches the screen — and I nearly shipped exactly that: recall's convergence diagram
+  // draws 🧠 🛰️ 🧭 🔎 as SVG <text>, and the new fill-based contrast check called four
+  // perfectly visible glyphs "1.08:1".
+  //
+  // Which is the bug this check exists to prevent, committed by the check itself. A
+  // pictograph carries no foreground colour to judge, so there is nothing here to judge.
+  const PICTO = /^[\p{Extended_Pictographic}\uFE0F\u200D\s]+$/u;
+  const onlyEmoji = (t) => !!t && PICTO.test(t);
+
   // ── colour maths (WCAG) ────────────────────────────────────────────────────
   const parse = (c) => {
     const m = String(c).match(/rgba?\(([^)]+)\)/);
@@ -110,7 +121,21 @@ export function auditPage(opts) {
 
   // The colour(s) the glyphs are actually PAINTED in. Normally one — but gradient
   // text has one per stop, and WCAG is only satisfied if the WORST of them passes.
-  function inkOf(st) {
+  function inkOf(st, el) {
+    // SVG TEXT IS PAINTED BY `fill`. `color` is inherited, irrelevant, and never reaches
+    // the screen — and it is exactly what a DOM contrast checker reads. So #eee text on
+    // white inside an <svg> was measured as the body's #111 on white, called 16:1, and
+    // passed. iris caught that it was 8px and missed that it was invisible.
+    //
+    // This is the background-clip:text bug wearing a different hat: the DOM reporting a
+    // colour that is not on the screen, and the eye believing it.
+    if (el && el.namespaceURI === 'http://www.w3.org/2000/svg') {
+      const f = String(st.fill || '');
+      if (f === 'none') return [];                          // not painted at all
+      if (/url\(/.test(f)) return [{ unknown: true }];      // a paint server; do not guess
+      const c = parse(f);
+      return c && c.a > 0.05 ? [c] : [];
+    }
     if (paintedByBg(st)) {
       const img = String(st.backgroundImage || '');
       if (/url\(/.test(img)) return [{ unknown: true }];   // a photo is the ink. Nobody can compute this.
@@ -209,7 +234,7 @@ export function auditPage(opts) {
     }
 
     // ── 5. contrast ──────────────────────────────────────────────────────────
-    const inks = inkOf(st);
+    const inks = onlyEmoji(label(el)) ? [] : inkOf(st, el);
     const bgc = inks.length && !inks[0].unknown ? backdrop(el) : null;
     if (inks.length && !inks[0].unknown && bgc && !bgc.unknown) {
       const bg = bgc;
@@ -232,6 +257,46 @@ export function auditPage(opts) {
       }
     }
     checkTap(el, r, st);
+
+    // ── text that is on the screen and not in the tree ──────────────────────
+    // `::before` and `::after` render real words — badges, counters, icon labels, the
+    // little "NEW" on a nav item — and they are not elements, so a walk of the DOM never
+    // sees them. iris was blind to a 7px #efefef badge sitting in plain view.
+    //
+    // They have no box you can measure from the outside, but they do not need one: the
+    // computed style has the font size and the colour, and the backdrop is the parent's.
+    // That is everything the two checks that matter actually use.
+    for (const pseudo of ['::before', '::after']) {
+      const ps = getComputedStyle(el, pseudo);
+      const content = ps.content;
+      // 'none' / 'normal' = nothing rendered. A bare url() is an image, not text.
+      if (!content || content === 'none' || content === 'normal') continue;
+      if (/^url\(/.test(content)) continue;
+      const words = content.replace(/^["']|["']$/g, '').trim();
+      if (!words || words.length < 2) continue;             // "•" is decoration, not prose
+
+      const pfs = parseFloat(ps.fontSize);
+      if (pfs && pfs < minFont) {
+        V.push({ rule: 'tiny-text', severity: 'medium', selector: sel(el) + pseudo, text: words.slice(0, 60),
+          detail: `${pfs.toFixed(1)}px text — below the ${minFont}px floor${mobile ? ' (phones make this worse, not better)' : ''}`
+            + ` — and it is rendered by ${pseudo}, so it is on the screen but not in the DOM` });
+      }
+      const pink = parse(ps.color);
+      const pbg = pink && pink.a > 0.05 ? backdrop(el) : null;
+      if (pink && pink.a > 0.05 && pbg && !pbg.unknown) {
+        const eff = pink.a < 1 ? over(pink, pbg) : pink;
+        const cr = ratio(eff, pbg);
+        const large = pfs >= 24 || (+ps.fontWeight >= 700 && pfs >= 18.66);
+        const need = large ? 3 : contrastAA;
+        if (cr < need) {
+          V.push({ rule: 'contrast', severity: cr < need - 1.5 ? 'high' : 'medium',
+            selector: sel(el) + pseudo, text: words.slice(0, 60),
+            detail: `contrast ${cr.toFixed(2)}:1 against its background — WCAG AA wants ${need}:1 for ${large ? 'large' : 'body'} text`
+              + ` — and it is rendered by ${pseudo}, so it is on the screen but not in the DOM`,
+            fg: ps.color, bg: `rgb(${Math.round(pbg.r)}, ${Math.round(pbg.g)}, ${Math.round(pbg.b)})`, ratio: +cr.toFixed(2) });
+        }
+      }
+    }
   }
 
   function checkTap(el, r, st) {

@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- Two kinds of text that are ON THE SCREEN and NOT IN THE DOM the way you think.
+
+     1. SVG TEXT IS PAINTED BY `fill`. `color` is inherited, irrelevant, and never reaches
+        the screen — and it is exactly what a DOM contrast checker reads. So #eee text on
+        white inside an <svg> was measured as the body's #111 on white, called 16:1, and
+        passed. iris caught that it was 8px and missed that it was invisible. (The same bug
+        as background-clip:text, wearing a different hat.)
+
+     2. `::before` / `::after` RENDER REAL WORDS — badges, counters, the little "NEW" on a
+        nav item — and they are not elements, so a walk of the DOM never sees them at all.
+
+     And the emoji next to them must NOT be flagged: a pictograph is painted by the FONT, in
+     its own colour layers, and neither `color` nor `fill` touches it. Judging one by either
+     is measuring a colour that never reaches the screen — which is the bug this whole file
+     exists to catch. I made it myself, on recall's diagram, before catching it here. -->
+<html><head><meta charset="utf-8"><title>invisible text</title>
+<style>
+  body { margin:0; background:#fff; color:#111; font:16px system-ui; padding:24px; }
+  /* text that exists on screen but NOT in the element tree */
+  .badge::after { content:"NEW · unreadable"; color:#efefef; font-size:7px; }
+</style></head>
+<body>
+  <h1>Two kinds of invisible text</h1>
+  <svg width="400" height="60">
+    <!-- SVG text is painted by `fill`. `color` is irrelevant and is what a DOM checker reads. -->
+    <text x="0" y="30" fill="#eeeeee" font-size="8">SVG text: #eee on white, 8px. Nobody can read this.</text>
+  </svg>
+  <p class="badge">A badge follows this line: </p>
+  <p>An emoji is not judged by a colour that does not paint it: <span style="color:#fbfbfb">🧠 🛰️ 🧭</span></p>
+</body></html>

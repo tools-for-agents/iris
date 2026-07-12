@@ -478,3 +478,29 @@ test('iris says when it could not see all of a page — a partial answer that lo
   assert.equal(run.blind, null, 'an ordinary page has nothing to declare, and is not lectured');
   assert.doesNotMatch(iris.report(run), /could not see all of it/);
 });
+
+// ── Text that is on the screen and not in the tree ──────────────────────────────
+test('SVG text is painted by fill, and ::after text is not an element at all', needsChrome, async () => {
+  const run = await iris.look(fixture('invisibletext.html'), { viewports: 'desktop', themes: 'light' });
+  const contrast = rule(run, 'contrast');
+
+  // SVG text is painted by `fill`. `color` is inherited, irrelevant, and never reaches the
+  // screen — and it is what a DOM checker reads. #eee-on-white was measured as the body's
+  // #111-on-white, called 16:1, and passed. The same bug as background-clip:text.
+  const svg = contrast.find((v) => /svg/.test(v.selector));
+  assert.ok(svg, 'SVG text is judged by the colour that actually paints it');
+  assert.ok(svg.ratio < 2, `#eee on white is 1.16:1; got ${svg.ratio}`);
+
+  // ::after renders real words and is not an element, so a walk of the DOM never sees it.
+  const after = contrast.find((v) => /::after/.test(v.selector));
+  assert.ok(after, 'text rendered by a pseudo-element is still text on the screen');
+  assert.match(after.detail, /on the screen but not in the DOM/, 'and the report says why you could not find it');
+  assert.ok(rule(run, 'tiny-text').some((v) => /::after/.test(v.selector)), '7px is 7px, wherever it is declared');
+
+  // And the check must not commit the very sin it exists to catch: an emoji is painted by
+  // the FONT, in its own colours. Neither `color` nor `fill` touches it. There is no
+  // foreground colour here to judge — and judging one anyway called four visible glyphs on
+  // recall's diagram "1.08:1".
+  assert.ok(!contrast.some((v) => /🧠|🛰|🧭/.test(v.text || '')),
+    'a pictograph carries no foreground colour to measure, so it is not measured');
+});
