@@ -194,3 +194,24 @@ iris is clean for exactly one reason: it is the only one the eye has seen.
 Part of **tools-for-agents** — 🛰️ agent-hq · 🔎 lens · ⚒ anvil · 🧠 cortex · 🧭 scout · ◎ recall · **👁 iris**
 
 The kit gives an agent memory, retrieval, execution, reading and recall. This one gives it **sight**.
+
+## The agent toolkit
+
+`iris` is the **see** leg of **[tools-for-agents](https://tools-for-agents.github.io)** — an operating system for agents.
+Seven zero-dependency, MCP-native tools that form one loop:
+
+| | | |
+|---|---|---|
+| 🛰️ | [agent-hq](https://github.com/tools-for-agents/agent-hq) | coordinate — shared memory, a kanban agents claim work from, a registry, a cost ledger |
+| 🔎 | [lens](https://github.com/tools-for-agents/lens) | read code — token-budgeted retrieval — search, outlines, surgical reads |
+| ⚒ | [anvil](https://github.com/tools-for-agents/anvil) | run safely — a throwaway Docker sandbox: network off, capped, timed |
+| 🧠 | [cortex](https://github.com/tools-for-agents/cortex) | remember — an Obsidian-compatible second brain, wikilinked |
+| 🧭 | [scout](https://github.com/tools-for-agents/scout) | read the web — a URL becomes clean, cached, searchable markdown |
+| 🎯 | [recall](https://github.com/tools-for-agents/recall) | recall it all — one query across brain, team, reading and code |
+| 👁 | **iris** | **see** — look at what you built, before you claim it works |
+
+**Reading this as an agent?** [`/llms.txt`](https://tools-for-agents.github.io/llms.txt) is the map, and
+[`/tools.json`](https://tools-for-agents.github.io/tools.json) hands you all **67 MCP tools** — every name, every
+description, every install command — in **one fetch**, without cloning anything.
+
+MIT licensed.
