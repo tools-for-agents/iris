@@ -1,0 +1,25 @@
+<!doctype html>
+<!-- The other half of the same bug — and the dangerous half.
+
+     This headline is ALSO painted by its background, but its gradient is nearly the
+     colour of the page. On screen it is a smudge: 1.63:1. You cannot read it.
+
+     iris used to pass this page. It compared the declared `color` (#e8ebf2, which is
+     never painted, because the fill is transparent) against the gradient (which is not
+     behind the text, because it IS the text) — near-white on dark, ~13:1, clean.
+
+     So the same wrong model produced BOTH a false alarm on a readable headline and
+     silence on an unreadable one. That is what measuring the wrong two colours does:
+     it does not make you cautious, it makes you random.
+
+     iris must fail this page, and must name a GRADIENT STOP as the ink. -->
+<html lang="en"><head><meta charset="utf-8"><title>dark clip</title>
+<style>
+  body { margin:0; background:#0a0b0e; color:#e8ebf2; font:16px/1.6 system-ui,sans-serif; padding:32px; }
+  h1 { font-size:40px; line-height:1.1; margin:0;
+       background:linear-gradient(90deg,#2a2c33,#33363f);
+       -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+</style></head>
+<body>
+  <h1>You cannot read this</h1>
+</body></html>

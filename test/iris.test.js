@@ -245,3 +245,36 @@ test('a page graded against a declared system is told exactly which value to use
   assert.ok(loose.design.findings.length < run.design.findings.length,
     'the heuristic sees a tidy page; only the declared system sees a wrong one');
 });
+
+// ── The DOM lies, and iris believed it. Twice. ───────────────────────────────────
+// Both of these were found by pointing iris at the kit's own landing page — the one
+// surface the eye had never seen. It reported four defects. All four were iris's.
+
+test('an inline that wraps is not a rectangle — two <b>s in one sentence do not collide', needsChrome, async () => {
+  const run = await iris.look(fixture('inlinewrap.html'), { viewports: 'desktop', themes: 'dark' });
+
+  // getBoundingClientRect() on a wrapped inline is the UNION of its line boxes — a
+  // shape it never occupies. Compare those unions and any two <b>s in a paragraph
+  // "print over" each other. Compare the LINE boxes and they plainly do not.
+  assert.deepEqual(rule(run, 'overlap'), [],
+    `no glyph on this page touches another; got: ${JSON.stringify(rule(run, 'overlap'))}`);
+
+  // The headline is painted by its background. The gradient is the ink, not the ground.
+  assert.deepEqual(rule(run, 'contrast'), [],
+    `every stop of this gradient is bright on near-black; got: ${JSON.stringify(rule(run, 'contrast'))}`);
+  assert.equal(run.summary.passed, true, 'nothing here is broken');
+});
+
+test('gradient text is judged by its darkest stop — and the old model passed a headline nobody can read', needsChrome, async () => {
+  const run = await iris.look(fixture('darkclip.html'), { viewports: 'desktop', themes: 'dark' });
+
+  const c = rule(run, 'contrast');
+  assert.equal(c.length, 1, 'the smudged headline is caught');
+  assert.ok(c[0].ratio < 2, `1.63:1 — unreadable; got ${c[0].ratio}:1`);
+
+  // The proof that we measure the INK: the reported foreground must be a stop of the
+  // gradient, not the #e8ebf2 `color` that the transparent fill means is never painted.
+  assert.match(c[0].fg, /rgb\(4[0-9], 4[0-9], 5[0-9]\)|rgb\(5[0-9], 5[0-9], 6[0-9]\)/,
+    `the ink is a gradient stop, not the never-painted color; got fg=${c[0].fg}`);
+  assert.doesNotMatch(c[0].fg, /232/, 'rgb(232,235,242) is declared, and never reaches the screen');
+});

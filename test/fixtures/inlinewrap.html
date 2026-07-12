@@ -1,0 +1,33 @@
+<!doctype html>
+<!-- Nothing on this page is broken. iris used to report four defects on it, and every
+     one of them was the DOM lying:
+
+     1. The two <b>s in the paragraph WRAP across lines. `getBoundingClientRect()` on an
+        inline returns the UNION of its line boxes — a rectangle the element never
+        occupies. So two <b>s in one flowing sentence "collide" inside a box that
+        neither of them fills, and iris called a perfectly ordinary paragraph "text
+        printing over text". No glyph here touches another glyph.
+
+     2. The headline is painted BY its background: `background-clip:text` with a
+        transparent fill. The gradient IS the ink; `color` is never painted at all.
+        Read naively that is near-white text sitting on a lilac card — 2.25:1 — a
+        colour that is not on the screen measured against a surface that is not there.
+        Every stop here is bright against near-black.
+
+     If iris finds anything on this page, iris is wrong. -->
+<html lang="en"><head><meta charset="utf-8"><title>inline wrap</title>
+<style>
+  body { margin:0; background:#0a0b0e; color:#e8ebf2; font:16px/1.6 system-ui,sans-serif; padding:32px; }
+  .col { max-width:340px; }   /* narrow on purpose — the inlines MUST wrap for this to test anything */
+  h1 { font-size:40px; line-height:1.1; margin:0 0 16px;
+       background:linear-gradient(96deg,#6ea8fe,#4fd6be 40%,#c792ea 70%,#ec4899);
+       -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+  p { color:#8a92a3; margin:0; }   /* 6.3:1 on this ground */
+  b { color:#e8ebf2; font-weight:600; }
+</style></head>
+<body>
+  <div class="col">
+    <h1>Seven primitives, one loop.</h1>
+    <p>A toolkit an agent fully owns: <b>coordinate, read code, run safely, remember, read the web, recall</b> — and <b>see what you built</b>. Every tool is zero-dependency and MCP-native.</p>
+  </div>
+</body></html>

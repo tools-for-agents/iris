@@ -76,9 +76,39 @@ export function auditPage(opts) {
     }
     return null;
   }
+  // `background-clip: text` SWAPS the two roles. The background is not behind the
+  // letters — the background IS the letters, and `color` is never painted at all.
+  // Read naively, a gradient headline looks like near-white text sitting on a lilac
+  // card, and iris called the kit's own perfectly legible hero "2.25:1" — comparing
+  // a colour that is not on the screen against a surface that does not exist.
+  const clipsText = (s) => s.webkitBackgroundClip === 'text' || s.backgroundClip === 'text';
+  const transparent = (c) => !c || c.a < 0.05;
+  const paintedByBg = (s) => clipsText(s)
+    && (transparent(parse(s.webkitTextFillColor)) || transparent(parse(s.color)));
+
+  // The colour(s) the glyphs are actually PAINTED in. Normally one — but gradient
+  // text has one per stop, and WCAG is only satisfied if the WORST of them passes.
+  function inkOf(st) {
+    if (paintedByBg(st)) {
+      const img = String(st.backgroundImage || '');
+      if (/url\(/.test(img)) return [{ unknown: true }];   // a photo is the ink. Nobody can compute this.
+      const stops = [...img.matchAll(/rgba?\([^)]+\)/g)].map((m) => parse(m[0])).filter((x) => x && x.a > 0.05);
+      if (stops.length) return stops;
+      const bc = parse(st.backgroundColor);
+      return bc && bc.a > 0.05 ? [bc] : [];
+    }
+    // `-webkit-text-fill-color` wins over `color` when both are set; it computes to
+    // `currentColor`, so when nobody set it this is just the colour.
+    const fill = parse(st.webkitTextFillColor);
+    const c = fill || parse(st.color);
+    return c && c.a > 0.05 ? [c] : [];
+  }
+
   function backdrop(el) {
     let acc = null;
     for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+      // An element whose background paints its own glyphs is not behind anything.
+      if (clipsText(getComputedStyle(n))) continue;
       const c = bgOf(n);
       if (!c) continue;
       if (c.unknown) return { unknown: true };
@@ -157,19 +187,26 @@ export function auditPage(opts) {
     }
 
     // ── 5. contrast ──────────────────────────────────────────────────────────
-    const fg = parse(st.color);
-    const bgc = fg && fg.a > 0.05 ? backdrop(el) : null;
-    if (fg && fg.a > 0.05 && bgc && !bgc.unknown) {
+    const inks = inkOf(st);
+    const bgc = inks.length && !inks[0].unknown ? backdrop(el) : null;
+    if (inks.length && !inks[0].unknown && bgc && !bgc.unknown) {
       const bg = bgc;
-      const eff = fg.a < 1 ? over(fg, bg) : fg;
-      const cr = ratio(eff, bg);
       const bold = +st.fontWeight >= 700;
       const large = fs >= 24 || (bold && fs >= 18.66);
       const need = large ? 3 : contrastAA;
-      if (cr < need) {
-        add('contrast', cr < need - 1.5 ? 'high' : 'medium', el,
-          `contrast ${cr.toFixed(2)}:1 against its background — WCAG AA wants ${need}:1 for ${large ? 'large' : 'body'} text`,
-          { fg: st.color, bg: `rgb(${Math.round(bg.r)}, ${Math.round(bg.g)}, ${Math.round(bg.b)})`, ratio: +cr.toFixed(2) });
+      // Gradient text is only as readable as its worst stop.
+      let worst = null;
+      for (const ink of inks) {
+        const eff = ink.a < 1 ? over(ink, bg) : ink;
+        const cr = ratio(eff, bg);
+        if (!worst || cr < worst.cr) worst = { cr, ink: eff };
+      }
+      if (worst.cr < need) {
+        const rgb = (c) => `rgb(${Math.round(c.r)}, ${Math.round(c.g)}, ${Math.round(c.b)})`;
+        add('contrast', worst.cr < need - 1.5 ? 'high' : 'medium', el,
+          `contrast ${worst.cr.toFixed(2)}:1 against its background — WCAG AA wants ${need}:1 for ${large ? 'large' : 'body'} text`
+          + (inks.length > 1 ? ` (the worst of ${inks.length} gradient stops — text is only as readable as its darkest)` : ''),
+          { fg: rgb(worst.ink), bg: rgb(bg), ratio: +worst.cr.toFixed(2) });
       }
     }
     checkTap(el, r, st);
@@ -217,15 +254,29 @@ export function auditPage(opts) {
     }
     return false;
   };
-  const T = texts.slice(0, 400).filter((t) => !layered(t.el));
+  //
+  // And an inline element that WRAPS is not a rectangle. `getBoundingClientRect()`
+  // hands back the union of its line boxes — a shape the element never occupies. Two
+  // <b>s in one flowing sentence then "collide" inside a box neither of them fills,
+  // and iris reported text printing over text on a paragraph that was perfectly fine.
+  // Ask for the LINE boxes and compare those.
+  const boxesOf = (el) => [...el.getClientRects()].filter((b) => b.width > 1 && b.height > 1);
+  const hit = (a, b) => {
+    const ox = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+    const oy = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+    return ox > 2 && oy > 2 ? ox * oy : 0;
+  };
+  const T = texts.slice(0, 400).filter((t) => !layered(t.el))
+    .map((t) => { const boxes = boxesOf(t.el); return { ...t, boxes, ink: boxes.reduce((n, b) => n + b.width * b.height, 0) }; })
+    .filter((t) => t.ink > 0);
   for (let i = 0; i < T.length; i++) {
     for (let j = i + 1; j < T.length; j++) {
       const a = T[i], b = T[j];
       if (a.el.contains(b.el) || b.el.contains(a.el)) continue;      // nesting is not collision
-      const ox = Math.min(a.r.right, b.r.right) - Math.max(a.r.left, b.r.left);
-      const oy = Math.min(a.r.bottom, b.r.bottom) - Math.max(a.r.top, b.r.top);
-      if (ox <= 2 || oy <= 2) continue;
-      const area = ox * oy, smaller = Math.min(a.r.width * a.r.height, b.r.width * b.r.height);
+      if (!hit(a.r, b.r)) continue;                                  // cheap union reject before the line boxes
+      let area = 0;
+      for (const ra of a.boxes) for (const rb of b.boxes) area += hit(ra, rb);
+      const smaller = Math.min(a.ink, b.ink);
       if (smaller > 0 && area / smaller > 0.35) {
         V.push({ rule: 'overlap', severity: 'high', selector: sel(a.el), text: label(a.el),
           detail: `overlaps “${label(b.el)}” (${sel(b.el)}) across ${Math.round(area)}px² — text is printing over text` });
