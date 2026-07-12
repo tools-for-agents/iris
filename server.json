@@ -1,0 +1,27 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.tools-for-agents/iris",
+  "description": "The agent's eye: render your UI at real viewports and measure what a glance would catch.",
+  "version": "0.1.0",
+  "websiteUrl": "https://tools-for-agents.github.io",
+  "repository": {
+    "url": "https://github.com/tools-for-agents/iris",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@tools-for-agents/iris",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "mcp"
+        }
+      ]
+    }
+  ]
+}

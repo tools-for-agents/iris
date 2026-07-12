@@ -65,6 +65,9 @@ try {
   } else if (cmd === 'serve') {
     const { serve } = await import('./server.js');
     serve({ port: flags['--port'] ? +flags['--port'] : undefined });
+  } else if (cmd === 'mcp') {
+    // stdio JSON-RPC. The server starts on import: `npx @tools-for-agents/iris mcp`
+    await import('../mcp/mcp-server.js');
   } else {
     out(`iris — the agent's eye. Render what you built, and measure what a glance would catch.
 
