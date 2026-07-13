@@ -8,7 +8,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, extname, normalize } from 'node:path';
+import { dirname, join, extname, normalize, sep } from 'node:path';
 import { look, play, runs, getRun, shotBytes, forget, stats } from './core.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -85,7 +85,10 @@ export function createIrisServer() {
 async function serveStatic(res, pathname) {
   const rel = pathname === '/' ? '/index.html' : pathname;
   const filePath = normalize(join(PUBLIC, rel));
-  if (!filePath.startsWith(PUBLIC)) { res.writeHead(403); return res.end('forbidden'); }
+  // startsWith(PUBLIC) alone lets a SIBLING through (/app/public also prefixes /app/public-x).
+  // The other six servers were hardened in cycle 49; iris's serveStatic was missed then because I
+  // was fixing shotBytes (the live traversal via a query param) and never looked one function down.
+  if (filePath !== PUBLIC && !filePath.startsWith(PUBLIC + sep)) { res.writeHead(403); return res.end('forbidden'); }
   try {
     const data = await readFile(filePath);
     res.writeHead(200, { 'Content-Type': MIME[extname(filePath)] || 'application/octet-stream' });
