@@ -815,3 +815,28 @@ test('shotBytes cannot be walked out of the run directory, through EITHER argume
     }
   } finally { process.env.IRIS_OUT = prev; }
 });
+
+test('runs() and report() coerce a bad --limit instead of hiding everything', async () => {
+  const { mkdirSync, writeFileSync, mkdtempSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const out = mkdtempSync(join(tmpdir(), 'iris-num-'));
+  const prev = process.env.IRIS_OUT;
+  process.env.IRIS_OUT = out;
+  try {
+    for (const id of ['run-a', 'run-b', 'run-c']) {
+      mkdirSync(join(out, id));
+      writeFileSync(join(out, id, 'run.json'), JSON.stringify({ id, summary: { passed: true } }));
+    }
+    // slice(0, NaN) would hide every run — a bad --limit must fall back, not blank the list
+    for (const bad of [NaN, -1, 'abc']) {
+      assert.equal(iris.runs({ limit: bad }).length, 3, `runs limit=${String(bad)} shows all, not none`);
+    }
+    // report's slice(0, NaN) would print a findings-free report — looking like a clean page
+    const fake = { summary: { high: 1, medium: 0, low: 0, total: 1, passed: false, console_errors: 0 },
+      violations: [{ rule: 'clipped', severity: 'high', selector: '.x', detail: 'off-screen left' }], shots: [], console_errors: [] };
+    assert.match(iris.report(fake, { limit: NaN }), /clipped|off-screen/, 'report(limit=NaN) still lists the finding');
+  } finally {
+    if (prev === undefined) delete process.env.IRIS_OUT; else process.env.IRIS_OUT = prev;
+    rmSync(out, { recursive: true, force: true });
+  }
+});

@@ -531,6 +531,8 @@ function inputWord(i) {
 // A briefing an agent can act on: what is wrong, where, and nothing else. Kept
 // short on purpose — a 4000-token wall of violations gets skimmed, not fixed.
 export function report(run, { limit = 25 } = {}) {
+  // bad limit (NaN from a non-numeric --limit → slice(0, NaN) shows ZERO findings, looking like a clean run) → default
+  limit = Number.isFinite(+limit) && +limit > 0 ? Math.floor(+limit) : 25;
   const L = [];
   const s = run.summary;
   L.push(`${run.kind === 'play' ? '🎮' : '👁'}  ${run.target}`);
@@ -606,6 +608,7 @@ export function report(run, { limit = 25 } = {}) {
 
 // ── the run store: what the eye has already seen ─────────────────────────────
 export function runs({ limit = 30 } = {}) {
+  limit = Number.isFinite(+limit) && +limit > 0 ? Math.floor(+limit) : 30;   // NaN → slice(0, NaN) hides every run
   const base = OUT();
   if (!existsSync(base)) return [];
   return readdirSync(base, { withFileTypes: true })
