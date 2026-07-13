@@ -708,3 +708,33 @@ test('the viewport meta is not demanded of a desktop render', needsChrome, async
   const run = await iris.look(fixture('noviewport.html'), { viewports: 'desktop', themes: 'light' });
   assert.deepEqual(rule(run, 'no-viewport-meta'), [], 'nobody scales a desktop down to fit a phone');
 });
+
+// TASTE IS NOT A PROPERTY OF THE ORDER YOU LISTED THE WINDOWS IN.
+//
+// The design critique — the type scale, the spacing grid, the radii — is measured once, on the
+// WIDEST render, because taste is a property of the design and not of the window it is shown in.
+// The code took the LAST viewport in the list instead, which is only the widest if you happened
+// to list them small-to-large. The kit's CI passes `phone,tablet,desktop` and so got away with it
+// forever; `desktop,phone` measured the type scale on a 390px render, where the media queries
+// have already collapsed it — a critique of the mobile layout, filed as a critique of the design.
+// The fixture matters as much as the assertion. offsystem.html has NO media queries, so its
+// design is identical at every width — a test built on it passes whether the code is right or
+// wrong, and my first cut of this test did exactly that. It was a decoration, and I only found
+// out by planting the bug back and watching it stay green.
+//
+// responsive-scale.html is the page that can tell the two apart: seven arbitrary font sizes at
+// desktop, collapsing to two on a phone. Measured at the phone it looks like a tidy design
+// system that exists at no width a human will ever use.
+test('the design critique is the same whichever order you list the viewports in', needsChrome, async () => {
+  const a = await iris.look(fixture('responsive-scale.html'), { viewports: 'desktop,phone', themes: 'light' });
+  const b = await iris.look(fixture('responsive-scale.html'), { viewports: 'phone,desktop', themes: 'light' });
+  assert.ok(a.design, 'a design section was produced');
+  assert.deepEqual(a.design, b.design,
+    'the same page, the same design — listing the phone last must not change what taste says');
+  // …and it is the DESKTOP scale being judged. On the phone those seven sizes collapse to 16 and
+  // 24, which ARE on the declared scale — so a critique measured there finds NOTHING and reports
+  // a tidy design system that exists at no width anyone will ever use.
+  const drift = a.design.findings.find((f) => f.rule === 'off-scale-type');
+  assert.ok(drift, 'the desktop scale is off-system and must be named');
+  assert.match(drift.detail, /37px/, 'and 37px only exists at the desktop width');
+});

@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a type scale that collapses on a phone</title>
+<!--
+  THE PAGE WHOSE DESIGN DEPENDS ON WHICH WINDOW YOU LOOK THROUGH.
+//
+  On a DESKTOP this page has seven arbitrary font sizes — 13, 15, 17, 19, 23, 29, 37 — none of
+  them on any scale, chosen by nobody. That is exactly the drift the design critique exists to
+  name.
+
+  On a PHONE the media query collapses all of it to two sizes. The page becomes, by accident,
+  perfectly consistent — and a critique measured there reports a tidy little design system that
+  does not exist at any width a human will actually use.
+
+  Which is what iris did whenever you passed `--viewports desktop,phone`: it took the LAST
+  viewport in the list, not the widest, and filed a critique of the mobile layout as a critique
+  of the design.
+
+  So this fixture is the one that can tell the two apart. offsystem.html cannot: it has no media
+  queries, its design is the same at every width, and a test built on it passes whether the code
+  is right or wrong. That test was a decoration, and it took planting the bug to find out.
+-->
+<style>
+  body { margin: 0; padding: 24px; background: #fff; color: #14181d; font-family: system-ui, sans-serif; }
+  .a { font-size: 37px; line-height: 1.2; margin: 0 0 13px; }
+  .b { font-size: 29px; line-height: 1.3; margin: 0 0 15px; }
+  .c { font-size: 23px; line-height: 1.4; margin: 0 0 17px; }
+  .d { font-size: 19px; line-height: 1.5; margin: 0 0 19px; }
+  .e { font-size: 17px; line-height: 1.6; margin: 0 0 23px; }
+  .f { font-size: 15px; line-height: 1.6; margin: 0 0 29px; }
+  .g { font-size: 13px; line-height: 1.7; margin: 0 0 37px; }
+
+  /* …and on a phone, none of that survives. Two sizes, one rhythm, an accidental system. */
+  @media (max-width: 480px) {
+    .a, .b, .c { font-size: 24px; line-height: 1.4; margin: 0 0 16px; }
+    .d, .e, .f, .g { font-size: 16px; line-height: 1.6; margin: 0 0 16px; }
+  }
+</style>
+
+<p class="a">Seven sizes at desktop</p>
+<p class="b">chosen by nobody in particular,</p>
+<p class="c">none of them on a scale,</p>
+<p class="d">none of them on a grid,</p>
+<p class="e">and all of them collapsing</p>
+<p class="f">into two tidy sizes on a phone,</p>
+<p class="g">where the drift becomes invisible.</p>

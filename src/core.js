@@ -214,6 +214,7 @@ export async function look(target, opts = {}) {
     // wakes up in — most usefully, break the API. Every one of these UIs is a shell that
     // asks a server what to draw, and NOTHING has ever rendered the answer "no".
     if (opts.boot) await session.page.boot(opts.boot);
+    const widest = viewports.reduce((a, b) => (VIEWPORTS[b].width > VIEWPORTS[a].width ? b : a));
     for (const vp of viewports) {
       for (const theme of themes) {
         await session.page.viewport(VIEWPORTS[vp]);
@@ -238,7 +239,15 @@ export async function look(target, opts = {}) {
           : await session.page.evaluate(auditPage, { ...cfg, mobile: VIEWPORTS[vp].mobile });
         // Taste is a property of the design, not of the window it is shown in — so
         // measure the scales once, on the widest render, rather than six times.
-        if (opts.critique !== false && !design && vp === viewports[viewports.length - 1]) {
+        //
+        // It used to take the LAST viewport in the list, which is only the widest if you happen
+        // to have listed them small-to-large. The kit's CI passes `phone,tablet,desktop` and so
+        // got away with it; `--viewports desktop,phone` measured the type scale on a 390px
+        // render, where the media queries have already collapsed it — a critique of the mobile
+        // layout, filed as a critique of the design.
+        //
+        // TASTE IS NOT A PROPERTY OF THE ORDER YOU LISTED THE WINDOWS IN. Ask for the widest.
+        if (opts.critique !== false && !design && vp === widest) {
           design = await session.page.evaluate(critiquePage, { grid: +opts.grid || 4, tokens });
         }
         // `look` never looked inside a canvas. Every check it has — overlap, contrast,
