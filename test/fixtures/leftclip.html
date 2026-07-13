@@ -1,0 +1,18 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>an element clipped off the LEFT edge — the mirror of the right-edge bug</title>
+<!--
+  iris used to check only the RIGHT viewport edge, so a control pushed off the LEFT
+  (an RTL overflow, or a negative offset) was silently reachable-in-the-DOM but not
+  on-screen. This fixture pairs a genuinely left-clipped button with the classic
+  visually-hidden `left:-9999px` idiom, which must NOT be mistaken for a clipping bug.
+-->
+<body style="margin:0;font:16px/1.6 system-ui,sans-serif;background:#fff;color:#111">
+  <a class="sr-skip" href="#main" style="position:absolute;left:-9999px;top:auto;width:200px;height:20px">Skip to content</a>
+  <main id="main" style="max-width:640px;margin:0 auto;padding:40px">
+    <h1 style="font-size:28px">A page whose Save button walked off the left edge</h1>
+    <p>The prose is fine and sits within the viewport.</p>
+  </main>
+  <button class="escapee-left" style="position:absolute;left:-60px;top:160px;width:140px;height:40px;background:#0a5;color:#fff;border:0;border-radius:8px">Save</button>
+</body>

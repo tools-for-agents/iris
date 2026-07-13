@@ -240,6 +240,19 @@ export function auditPage(opts) {
         { rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] });
     }
 
+    // ── 2b. clipped past the LEFT edge ────────────────────────────────────────
+    // The mirror image, and the one the right-only check silently missed: in an RTL
+    // layout the overflow runs LEFT, and in any layout a negative offset can push a
+    // control off the left edge — just as unreachable. Worse, negative-left often does
+    // NOT grow scrollWidth, so the page-overflow check never sees it either. `r.right > 0`
+    // (mirror of the right case's `r.left < W`) keeps the far-off-screen visually-hidden
+    // idiom (`left:-9999px`) from tripping it — that ends left of 0, so it is not flagged.
+    if (r.left < -1 && r.width < W * 1.5 && r.right > 0 && !inScroller(el)) {
+      const clip = Math.round(-r.left);
+      if (clip > 2) add('clipped', 'high', el, `extends ${clip}px past the left edge of the ${W}px viewport`,
+        { rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] });
+    }
+
     if (!ownText(el)) {
       // ── 3. tap targets (interactive, no text of its own — icon buttons) ─────
       checkTap(el, r, st);

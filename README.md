@@ -17,7 +17,7 @@ node src/cli.js serve                       # the contact sheet, at :7990
 | | |
 |---|---|
 | **page-overflow** | the page scrolls sideways — the single most common agent CSS bug, and invisible to every DOM assertion |
-| **clipped** | an element hanging past the right edge. A button 39px off-screen is a feature that does not exist |
+| **clipped** | an element hanging past a viewport edge — right OR left (RTL overflow, negative offsets). A button 39px off-screen is a feature that does not exist |
 | **contrast** | measured against the *effective* backdrop (walking up until something is opaque), WCAG AA, large-text aware |
 | **tiny-text** | type below the 12px floor |
 | **overlap** | text printing over text — the unmistakable signature of a layout that broke |

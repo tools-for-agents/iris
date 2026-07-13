@@ -82,6 +82,18 @@ test('a clean page passes — the eye does not cry wolf, and a phone is really a
   assert.equal(run.summary.passed, true);
 });
 
+// The eye checked only the RIGHT viewport edge — so a control pushed off the LEFT
+// (an RTL overflow, a negative offset) was unreachable on screen yet uncaught. And it
+// must NOT mistake the `left:-9999px` visually-hidden idiom for a clipping bug.
+test('a control clipped off the LEFT edge is caught — but the visually-hidden idiom is not', needsChrome, async () => {
+  const run = await iris.look(fixture('leftclip.html'), { viewports: 'desktop', themes: 'light', tokens: false });
+  const clipped = rule(run, 'clipped');
+  assert.ok(clipped.some((v) => /escapee-left/.test(v.selector) && /left edge/.test(v.detail || v.text)),
+    'the button 60px off the left edge is flagged as clipped');
+  assert.ok(!clipped.some((v) => /sr-skip/.test(v.selector)),
+    'the left:-9999px skip-link is a11y, not a clipping bug — it ends left of the viewport, so it is left alone');
+});
+
 // The headline case. A dead game renders one perfect frame and then nothing —
 // it is FLAWLESS in a screenshot. Only watching it move tells you the truth.
 test('a game that renders one perfect frame and then dies is caught — a screenshot never would', needsChrome, async () => {
