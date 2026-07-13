@@ -44,6 +44,19 @@ jobs:
   # past a green test suite, because a test suite does not look at the page.
   # This is the gate that would have caught it — and it is the same gate the other
   # six now use, via `uses: tools-for-agents/iris@main`.
+  # CAN THE TEST SUITE STILL FAIL? Break the code on purpose in the places whose breakage
+  # costs the most, and demand the suite goes RED. A surviving canary means the test guarding
+  # that line has stopped guarding it — and you find out today, not the morning after.
+  mutants:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: break it on purpose — every canary must die
+        run: node scripts/mutants.mjs
+
   look:
     runs-on: ubuntu-latest
     steps:

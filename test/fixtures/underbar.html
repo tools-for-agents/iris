@@ -25,7 +25,12 @@
   p { margin: 0 0 12px; }
 
   /* transparent — it covers nothing, and must never be reported */
-  #veil { position: fixed; inset: 0; background: transparent; z-index: 5; pointer-events: none; }
+  /* NO pointer-events:none. That is the whole point, and my first cut of this fixture had it
+     — which made the veil invisible to elementFromPoint(), so the paint test was never even
+     consulted and the test below passed whether the code existed or not. A decoration.
+     The layer that caused the real bug is cortex's graph <canvas>: transparent AND
+     hit-testable, because you can drag the graph. That is what has to be here. */
+  #veil { position: fixed; inset: 0; background: transparent; z-index: 5; }
 
   /* opaque, fixed, and sitting exactly on top of the last line */
   #bar {
