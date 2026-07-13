@@ -119,8 +119,6 @@ test('runs are remembered, readable, and can be forgotten', needsChrome, async (
   assert.ok(list.some((r) => r.id === run.id), 'the run is in the store');
   assert.ok(iris.getRun(run.id).summary.passed);
   assert.ok(iris.shotBytes(run.id, 'desktop-dark.png').length > 1000, 'the PNG reads back');
-  // no climbing out of the run directory
-  assert.equal(iris.shotBytes(run.id, '../../../etc/passwd'), null);
   assert.equal(iris.forget(run.id).removed, 1);
   assert.equal(iris.getRun(run.id), null);
 });
@@ -737,4 +735,52 @@ test('the design critique is the same whichever order you list the viewports in'
   const drift = a.design.findings.find((f) => f.rule === 'off-scale-type');
   assert.ok(drift, 'the desktop scale is off-system and must be named');
   assert.match(drift.detail, /37px/, 'and 37px only exists at the desktop width');
+});
+
+// THE SHOT VIEWER IS A WEB SERVER, AND IT WAS READING FILES OUTSIDE THE RUN DIRECTORY.
+//
+// /api/shot?id=..&file=... arrives from the query string and both parts are joined into a path.
+// The old guard sanitised `file` (no `..`, no slashes) and TRUSTED `id` completely — so
+// `?id=..&file=index.html` served iris's own source, and the right relative `id` reached anything
+// the process could read. A screenshot viewer that hands back /etc/passwd is not a screenshot
+// viewer.
+//
+// This needs NO browser — it is a pure path check — so it does NOT carry needsChrome. A security
+// test that skips whenever Chrome is absent is a security test that silently isn't there, which is
+// exactly how the hole survived: the only traversal assertion in the suite sat behind needsChrome
+// and never ran on a headless box.
+test('shotBytes cannot be walked out of the run directory, through EITHER argument', async (t) => {
+  const { mkdtempSync, writeFileSync, mkdirSync, rmSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const { join, resolve } = await import('node:path');
+
+  const base = mkdtempSync(join(tmpdir(), 'iris-traversal-'));
+  t.after(() => rmSync(base, { recursive: true, force: true }));
+  const store = join(base, 'runs');
+  mkdirSync(join(store, 'run-legit'), { recursive: true });
+  writeFileSync(join(store, 'run-legit', 'desktop-dark.png'), 'A REAL SCREENSHOT PADDED OUT'.repeat(50));
+  // a secret sitting OUTSIDE the run store, exactly where a real attacker would aim
+  writeFileSync(join(base, 'secret.txt'), 'TOP SECRET');
+  writeFileSync(resolve(store, '..', 'sibling.txt'), 'ALSO SECRET');
+
+  const prev = process.env.IRIS_OUT;
+  process.env.IRIS_OUT = store;
+  try {
+    const { shotBytes } = await import(`../src/core.js?traversal=${Date.now()}`);
+
+    assert.ok(shotBytes('run-legit', 'desktop-dark.png'), 'a real shot still reads back');
+
+    // every one of these must be refused — the id argument, the file argument, and absolutes
+    for (const [id, file, how] of [
+      ['..', 'secret.txt', 'id climbs one level'],
+      ['../..', 'secret.txt', 'id climbs two'],
+      ['run-legit', '../../secret.txt', 'file climbs (the arg that WAS guarded)'],
+      ['..', 'sibling.txt', 'id reaches a sibling of the store'],
+      [resolve(base), 'secret.txt', 'id is an absolute path'],
+      ['run-legit/..', 'secret.txt', 'id ends in ..'],
+    ]) {
+      assert.equal(shotBytes(id, file), null,
+        `traversal not refused: ${how} (id=${JSON.stringify(id)}, file=${JSON.stringify(file)})`);
+    }
+  } finally { process.env.IRIS_OUT = prev; }
 });

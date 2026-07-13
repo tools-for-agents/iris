@@ -13,7 +13,7 @@
 // Zero dependencies — the browser is driven over CDP by src/browser.js.
 import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { join, resolve, isAbsolute } from 'node:path';
+import { join, resolve, isAbsolute, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { open, findChrome } from './browser.js';
 import { auditPage, critiquePage, canvasHealth, blindSpots, instrumentFrames, readFrames } from './audit.js';
@@ -623,8 +623,20 @@ export function getRun(id) {
 }
 
 export function shotBytes(id, file) {
-  if (/[\\/]|\.\./.test(file)) return null;              // no traversal out of the run dir
-  const f = join(OUT(), id, file);
+  // THE `file` ARGUMENT WAS SANITISED AND THE `id` ARGUMENT WAS NOT.
+  //
+  // This is a web server: id and file both arrive from the query string, and both are joined
+  // into a filesystem path. The old guard checked `file` for `..` and slashes and trusted `id`
+  // completely — so `?id=..&file=index.html` served iris's own source, and `?id=../../..` with
+  // the right file walked straight out to anything the process could read. A screenshot viewer
+  // that hands back /etc/passwd is not a screenshot viewer.
+  //
+  // Do not pattern-match for traversal tricks (there is always one more: encoded slashes,
+  // absolute paths, `....//`). RESOLVE the final path and demand it is still inside the run
+  // directory — the same thing serveStatic() does, and the only check that cannot be tricked.
+  const root = resolve(OUT());
+  const f = resolve(root, String(id), String(file));
+  if (f !== root && !f.startsWith(root + sep)) return null;   // escaped the run dir → refuse
   return existsSync(f) ? readFileSync(f) : null;
 }
 

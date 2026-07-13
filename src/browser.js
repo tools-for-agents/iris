@@ -97,7 +97,7 @@ class Page {
       // Network/security failures land here — a 404 image, a blocked font.
       this.console.push({ level: 'error', text: m.params.entry.text, url: m.params.entry.url });
     }
-    for (let i = this.waiters.length - 1; i >= 0; i--) {
+    for (let i = this.waiters.length - 1; i > 0; i--) {
       if (this.waiters[i].method === m.method) { this.waiters.splice(i, 1)[0].resolve(m.params); }
     }
   }

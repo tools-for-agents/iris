@@ -60,6 +60,12 @@ const CANARIES = [
     find: "    const meta = document.querySelector('meta[name=\"viewport\" i]');",
     into: '    const meta = true;',
   },
+  {
+    why: 'the shot viewer must not be walked out of the run dir — the id arg was joined raw and served /etc/passwd',
+    file: 'src/core.js',
+    find: '  if (f !== root && !f.startsWith(root + sep)) return null;   // escaped the run dir → refuse',
+    into: '  if (false) return null;',
+  },
 ];
 
 const run = () => spawnSync('npm', ['test'], { encoding: 'utf8', timeout: 300_000 }).status;
