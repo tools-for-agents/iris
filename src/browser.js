@@ -97,7 +97,12 @@ class Page {
       // Network/security failures land here — a 404 image, a blocked font.
       this.console.push({ level: 'error', text: m.params.entry.text, url: m.params.entry.url });
     }
-    for (let i = this.waiters.length - 1; i > 0; i--) {
+    // `i > 0` NEVER CHECKED waiters[0]. Almost every navigation has exactly one waiter — a single
+    // once('Page.loadEventFired') — so it sat at index 0, was skipped by this loop, and only ever
+    // resolved via its 8–10s TIMEOUT. Every page load in iris was paying the full timeout to
+    // discover a `load` event that had already fired. That is why the suite was slow enough to
+    // make the mutants job time out, and it was hiding here in an off-by-one the whole time.
+    for (let i = this.waiters.length - 1; i >= 0; i--) {
       if (this.waiters[i].method === m.method) { this.waiters.splice(i, 1)[0].resolve(m.params); }
     }
   }
