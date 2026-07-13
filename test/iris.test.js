@@ -45,8 +45,37 @@ test('the eye catches every defect on a page written without looking', needsChro
   assert.ok(existsSync(png) && statSync(png).size > 1000, 'a real PNG landed on disk');
 });
 
-test('a clean page passes — the eye does not cry wolf', needsChrome, async () => {
-  const run = await iris.look(fixture('clean.html'), { viewports: 'desktop,phone', themes: 'dark,light' });
+// A PHONE THAT REPORTS A DESKTOP POINTER IS NOT A PHONE.
+//
+// iris emulates touch only when a viewport is marked `mobile`, and browser.js says why in its
+// own comment: a phone with a desktop pointer gets desktop hover styles and LIES ABOUT TAP
+// TARGETS. The 24px minimum is a rule about fingers; measured through a mouse it means nothing.
+//
+// Nothing was guarding it — a canary flipped `phone: { mobile: true }` to false and the whole
+// suite stayed green. iris would have gone on auditing every phone as a small desktop, and every
+// tap-target verdict it has ever given would have been about the wrong input device.
+//
+// So ask the PAGE, which is the only one who knows: does it think it has fingers? Asserted here,
+// inside a look that ALREADY renders both viewports — a separate test would mean two more Chrome
+// launches, and the game gate below measures a frame rate, which is the one thing in this suite
+// that a busier machine can genuinely change.
+const TOUCH_MATCHES_THE_DEVICE =
+  // NB: screen.width, NOT innerWidth. A page with no <meta name="viewport"> is laid out by an
+  // emulated phone at Chrome's 980px desktop-fallback width and then scaled down — so innerWidth
+  // reads 980 on a phone, and my first cut of this assertion fired on the phone render believing
+  // it was a desktop. (The tool was right; the test was wrong. Again.) screen.width is the
+  // DEVICE, and it does not care what the page did or did not declare.
+  'const phone = screen.width <= 480;'
+  + 'if (phone && !(navigator.maxTouchPoints > 0)) throw new Error("PHONE IS NOT EMULATING TOUCH '
+  + '(maxTouchPoints=" + navigator.maxTouchPoints + "): hover styles apply and every tap-target '
+  + 'measurement is about a mouse");'
+  + 'if (!phone && navigator.maxTouchPoints > 0) throw new Error("DESKTOP IS EMULATING TOUCH '
+  + '(maxTouchPoints=" + navigator.maxTouchPoints + "): the 24px rule would fire on a page nobody '
+  + 'will ever touch");';
+
+test('a clean page passes — the eye does not cry wolf, and a phone is really a phone', needsChrome, async () => {
+  const run = await iris.look(fixture('clean.html'), {
+    viewports: 'desktop,phone', themes: 'dark,light', pre: TOUCH_MATCHES_THE_DEVICE });
   assert.equal(run.shots.length, 4, '2 viewports × 2 themes');
   assert.deepEqual(run.violations, [], `expected no violations, got: ${JSON.stringify(run.violations)}`);
   assert.equal(run.console_errors.length, 0);
@@ -642,4 +671,40 @@ test('a fixed bar over a page that DOES scroll is not a defect — you can scrol
   const run = await iris.look(fixture('underbar-scrolls.html'), { viewports: 'desktop', themes: 'light' });
   assert.deepEqual(rule(run, 'overlay-clip'), [],
     `the reader can scroll this line out from under the bar; got ${JSON.stringify(rule(run, 'overlay-clip'))}`);
+});
+
+// THE PAGE NEVER TOLD THE PHONE IT WAS A PAGE FOR A PHONE.
+//
+// Without <meta name="viewport">, a phone does not lay the page out at 390px. It lays it out at
+// NINE HUNDRED AND EIGHTY — Chrome's desktop fallback — and then scales the whole thing down to
+// fit the glass. Nothing overflows. Nothing collides. Every proportion is preserved. And every
+// element is about two and a half times smaller than its number says: a 48px button lands at
+// roughly 19 physical pixels, and 16px text reads like 6px.
+//
+// So every measurement iris takes on such a page is taken IN THE WRONG SPACE, and it passes the
+// page — the most common mobile bug there is, invisible to every check in this file, because
+// from inside the page everything is exactly where it should be.
+//
+// Found by accident: a test of mine asserted `innerWidth <= 480` on the phone render and fired,
+// believing it was a desktop. innerWidth was 980. The page had not asked for a phone.
+test('a page with no viewport meta is unusable on a phone, and iris now says so', needsChrome, async () => {
+  const run = await iris.look(fixture('noviewport.html'), { viewports: 'phone', themes: 'light' });
+  const found = rule(run, 'no-viewport-meta');
+  assert.equal(found.length, 1, `expected the missing meta to be reported, got ${JSON.stringify(run.violations)}`);
+  assert.match(found[0].detail, /980px/, 'and it says what width the phone will actually use');
+  assert.match(found[0].detail, /width=device-width/, 'and hands over the exact line to add');
+  assert.equal(run.summary.passed, false, 'a page nobody can read on a phone has not passed');
+});
+
+// …and it must NOT fire on a page that declared one, or it would fire on every correct page in
+// the kit — all seven tools declare it — and teach everyone to ignore the checker.
+test('a page that DID declare a viewport is left alone', needsChrome, async () => {
+  const run = await iris.look(fixture('clean.html'), { viewports: 'phone', themes: 'light' });
+  assert.deepEqual(rule(run, 'no-viewport-meta'), [], 'a well-formed page is not lectured about it');
+});
+
+// And it is a MOBILE finding: a desktop has no business being told about device-width.
+test('the viewport meta is not demanded of a desktop render', needsChrome, async () => {
+  const run = await iris.look(fixture('noviewport.html'), { viewports: 'desktop', themes: 'light' });
+  assert.deepEqual(rule(run, 'no-viewport-meta'), [], 'nobody scales a desktop down to fit a phone');
 });

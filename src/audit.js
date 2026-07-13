@@ -451,6 +451,36 @@ export function auditPage(opts) {
   // permanently buried. That false positive would have turned a repo red for a non-bug —
   // which is how you teach people to ignore a checker, and cost yourself the one time it
   // was right. `window.innerHeight` is the viewport, and it is already in scope as H.
+  // ── 8. THE PAGE NEVER TOLD THE PHONE IT WAS A PAGE FOR A PHONE ───────────────
+  //
+  // Without <meta name="viewport">, a phone does not lay the page out at 390px. It lays it out
+  // at NINE HUNDRED AND EIGHTY — Chrome's desktop fallback — and then scales the whole thing
+  // down to fit the screen. Everything still "fits". Nothing overflows. And every word on it is
+  // roughly two and a half times smaller than the number says.
+  //
+  // Which means every measurement in this file was taken in the wrong space: a 44px tap target
+  // is 17 physical pixels, 16px body text reads as 6px, and iris — measuring CSS pixels in a
+  // 980px viewport — calls all of it fine. THE MOST COMMON MOBILE BUG THERE IS, and the eye was
+  // structurally unable to see it, because from inside the page everything is in proportion.
+  //
+  // I found it by accident: a test of mine asserted `innerWidth <= 480` on the phone render and
+  // fired, believing it was a desktop. innerWidth was 980. The page had not asked for a phone.
+  if (mobile) {
+    const meta = document.querySelector('meta[name="viewport" i]');
+    const content = meta?.getAttribute('content') || '';
+    if (!meta) {
+      V.push({ rule: 'no-viewport-meta', severity: 'high', selector: 'head', text: '',
+        detail: `no <meta name="viewport"> — so a phone lays this page out at ${W}px and scales it `
+          + 'down to fit. Nothing overflows and everything is unreadable: a 44px button lands at '
+          + `about ${Math.round(44 * 390 / W)}px on the glass. Add: `
+          + '<meta name="viewport" content="width=device-width, initial-scale=1">' });
+    } else if (!/width\s*=\s*device-width/i.test(content)) {
+      V.push({ rule: 'no-viewport-meta', severity: 'high', selector: 'head > meta', text: content.slice(0, 60),
+        detail: 'the viewport meta does not say width=device-width, so the page is laid out at a '
+          + 'width the device never had, and then scaled. Every size on it is a size in the wrong space.' });
+    }
+  }
+
   const rootEl = document.documentElement;
   const pageScrolls = rootEl.scrollHeight > H + 2;
   if (!pageScrolls) {

@@ -1,0 +1,32 @@
+<!doctype html>
+<meta charset="utf-8">
+<!--
+  NO <meta name="viewport">. That is the whole fixture.
+
+  Everything else here is correct: 16px text, a 48px button, plenty of contrast, nothing
+  overlapping, nothing off the edge. On a desktop it is a perfectly good little page.
+
+  On a phone it is unusable — and it does not LOOK unusable from inside. Without the meta tag a
+  phone lays the page out at 980 CSS pixels (Chrome's desktop fallback) and then scales the whole
+  thing down to fit a 390px screen. Nothing overflows. Nothing collides. Every proportion is
+  preserved. And every element is roughly two and a half times smaller than its number says:
+  the 48px button lands at about 19 physical pixels, and the 16px text reads like 6px.
+
+  This is the most common mobile bug there is, and it is invisible to every check iris has,
+  because from inside the page everything is exactly where it should be.
+-->
+<title>a page that never told the phone it was a page for a phone</title>
+<style>
+  body { margin: 0; padding: 24px; background: #ffffff; color: #14181d;
+         font: 16px/1.6 system-ui, -apple-system, sans-serif; }
+  h1 { font-size: 24px; margin: 0 0 16px; }
+  p { margin: 0 0 16px; max-width: 60ch; }
+  button { min-height: 48px; padding: 12px 24px; font-size: 16px; border-radius: 8px;
+           border: 1px solid #14181d; background: #14181d; color: #ffffff; cursor: pointer; }
+</style>
+
+<h1>Everything on this page is the right size.</h1>
+<p>The text is 16px. The button is 48px tall. The contrast is 15:1. Nothing overflows, nothing
+   collides, and nothing is off the edge — measured in CSS pixels, this page is flawless.</p>
+<p>It is also unreadable on a phone, because the phone was never told this page was meant for it.</p>
+<button>A button you cannot press</button>
