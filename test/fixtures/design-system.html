@@ -1,0 +1,24 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a page whose design system is used enough to BE a system</title>
+<!--
+  `iris tokens` keeps a token only when the page LEANS on it — "a size used once is a decision
+  nobody made; a size used forty times is the system." So this fixture uses each of its two body
+  sizes (16, 24) and its 8px radius on MANY elements, so they clear the usage threshold and the
+  extraction has a known, stable answer.
+-->
+<style>
+  body { margin: 0; padding: 24px; background: #fff; color: #14181d; font: 16px/1.5 system-ui, sans-serif; }
+  .h  { font-size: 24px; margin: 0 0 16px; }
+  .p  { font-size: 16px; margin: 0 0 16px; }
+  .card { padding: 24px; margin: 0 0 24px; border-radius: 8px; background: #f2f5f8; }
+  .btn  { font-size: 16px; padding: 8px 16px; border-radius: 8px; border: 0; background: #14181d; color: #fff; }
+  /* used exactly ONCE — a decision nobody made. It must NOT survive into the system. */
+  .oddball { font-size: 13px; border-radius: 3px; }
+</style>
+<div class="card"><div class="h">Section one — 24px</div><div class="p">Body — 16px.</div><button class="btn">Go</button></div>
+<div class="card"><div class="h">Section two — 24px</div><div class="p">Body — 16px.</div><button class="btn">Go</button></div>
+<div class="card"><div class="h">Section three — 24px</div><div class="p">Body — 16px.</div><button class="btn">Go</button></div>
+<div class="card"><div class="h">Section four — 24px</div><div class="p">More body — 16px.</div><button class="btn">Go</button></div>
+<div class="oddball">a one-off 13px / 3px-radius flourish — used once, so not part of the system</div>

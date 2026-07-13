@@ -273,6 +273,25 @@ test('a page graded against a declared system is told exactly which value to use
     'the heuristic sees a tidy page; only the declared system sees a wrong one');
 });
 
+// `iris tokens` reads the design system a page is ALREADY using. Its whole discipline
+// is "keep what the page leans on": a size used once is a decision nobody made; the
+// system is what recurs. This pins both halves — the recurring tokens survive, the
+// one-off flourish does not — so a regression that stopped filtering would be caught.
+test('extracting a design system keeps what the page leans on and drops the one-offs', needsChrome, async () => {
+  const t = await iris.extractTokens(fixture('design-system.html'), { name: 'ds' });
+
+  // 16px (body) and 24px (headings) recur across every card — they ARE the system.
+  assert.ok(t.type.includes(16) && t.type.includes(24), `recurring type kept: ${JSON.stringify(t.type)}`);
+  assert.ok(!t.type.includes(13), 'the 13px one-off is not a decision anyone made — dropped');
+
+  // 8px radius is on every card and button; 3px appears once.
+  assert.ok(t.radius.includes(8), `recurring radius kept: ${JSON.stringify(t.radius)}`);
+  assert.ok(!t.radius.includes(3), 'the 3px one-off radius is dropped too');
+
+  // The grid is whichever of 8/4/2 the spacing most nearly obeys — here everything is a multiple of 8.
+  assert.equal(t.spacing.grid, 8, 'the page obeys an 8px grid');
+});
+
 // ── The DOM lies, and iris believed it. Twice. ───────────────────────────────────
 // Both of these were found by pointing iris at the kit's own landing page — the one
 // surface the eye had never seen. It reported four defects. All four were iris's.
