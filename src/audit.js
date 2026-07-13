@@ -430,6 +430,84 @@ export function auditPage(opts) {
     }
   }
 
+  // ── 7. a fixed bar slicing text that can never move out from under it ────────
+  //
+  // The overlap check above EXCLUDES everything inside a fixed/sticky layer, and it is
+  // right to: a sticky bar sitting over scrolled content is what a sticky bar is FOR, and
+  // calling that "text printing over text" was a false positive I removed on purpose.
+  //
+  // But the forgiveness has a hole in it. A bar may cover content the reader can SCROLL
+  // OUT FROM UNDER IT. On a page that CANNOT SCROLL, nothing ever moves: the text under
+  // the bar is sliced in half forever, and no scroll will ever reveal it. That is not
+  // stacking — it is clipping. The rule written to forgive the first case was structurally
+  // blind to the second, and it hid a real defect on cortex's own graph view.
+  //
+  // Do not reason about z-index — ASK THE BROWSER. elementFromPoint() is the compositor's
+  // own answer to "what is on top at this pixel"; it already knows about stacking contexts
+  // and paint order, and it does not need me to model them a second time, wrongly.
+  // NOT documentElement.clientHeight — the usual idiom for "the viewport", and it LIED.
+  // On iris's own page it reported 2583 (the content height) while the viewport was 900, so
+  // a page that scrolls 2.5k pixels was judged unscrollable and its bottom row was called
+  // permanently buried. That false positive would have turned a repo red for a non-bug —
+  // which is how you teach people to ignore a checker, and cost yourself the one time it
+  // was right. `window.innerHeight` is the viewport, and it is already in scope as H.
+  const rootEl = document.documentElement;
+  const pageScrolls = rootEl.scrollHeight > H + 2;
+  if (!pageScrolls) {
+    const layerOf = (el) => {
+      for (let n = el; n && n.nodeType === 1; n = n.parentElement) {
+        const p = getComputedStyle(n).position;
+        if (p === 'fixed' || p === 'sticky') return n;
+      }
+      return null;
+    };
+    // AND elementFromPoint ANSWERS A DIFFERENT QUESTION THAN THE ONE I MEANT TO ASK.
+    // It reports what is on top for HIT-TESTING — not what actually PAINTS there. The
+    // graph's <canvas> is transparent and sits in a fixed layer, so it wins the hit-test
+    // over text it does not put a single pixel on, and my first cut of this check called
+    // the hint "100% covered" when half of it was in plain sight.
+    //
+    // Which is the bug this whole check exists to catch, committed by the check itself:
+    // the DOM reported something the screen never showed, and the eye believed it.
+    // A COVER IS ONLY A COVER IF IT PAINTS.
+    const paints = (from, upTo) => {
+      for (let n = from; n && n.nodeType === 1; n = n.parentElement) {
+        const c = parse(getComputedStyle(n).backgroundColor);
+        if (c && c.a >= 0.5) return true;
+        if (n === upTo) break;
+      }
+      return false;
+    };
+    for (const t of texts.slice(0, 400)) {
+      const box = clipBox(t.el.getBoundingClientRect(), clipOf(t.el));
+      if (!box || box.width < 8 || box.height < 6) continue;
+      const mine = layerOf(t.el);
+      let probes = 0, covered = 0, by = null;
+      for (let gx = 1; gx <= 7; gx++) {
+        for (let gy = 1; gy <= 3; gy++) {
+          const x = box.left + (box.width * gx) / 8, y = box.top + (box.height * gy) / 4;
+          if (x < 0 || y < 0 || x >= W || y >= H) continue;
+          probes++;
+          const top = document.elementFromPoint(x, y);
+          if (!top || top === t.el || t.el.contains(top) || top.contains(t.el)) continue;
+          const lay = layerOf(top);
+          if (!lay || lay === mine || lay.contains(t.el)) continue;   // the same layer is not a cover
+          if (!paints(top, lay)) continue;                            // see-through: it covers nothing
+          covered++; by = lay;
+        }
+      }
+      // ALL of it covered is a different thing — a modal, a backdrop, a drawer deliberately
+      // hiding the page behind it. Text sliced only PART of the way through is nobody's
+      // intention: it is a bar that was never told the content reached that far down.
+      const frac = probes ? covered / probes : 0;
+      if (by && frac > 0.08 && frac < 0.9) {
+        V.push({ rule: 'overlay-clip', severity: 'high', selector: sel(t.el), text: label(t.el),
+          detail: `${Math.round(frac * 100)}% of this text is under “${label(by) || sel(by)}” (${sel(by)}), `
+            + 'which is fixed — and the page does not scroll, so it can never be moved out from under it' });
+      }
+    }
+  }
+
   return { viewport: { width: W, height: H, mobile: !!mobile }, violations: V,
     counts: V.reduce((a, v) => { a[v.rule] = (a[v.rule] || 0) + 1; return a; }, {}) };
 }

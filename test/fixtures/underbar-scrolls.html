@@ -1,0 +1,41 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>a fixed bar over a page that scrolls — which is what a fixed bar is FOR</title>
+<!--
+  THE NEGATIVE, and it is the one that matters.
+
+  Same opaque fixed bar, same text under it — but this page SCROLLS. The reader moves the
+  line out from under the bar with a flick of the wheel. That is not a defect; it is what
+  a fixed bar is for, and reporting it would be a false positive on nearly every long page
+  on the web.
+
+  I nearly shipped exactly that. `documentElement.clientHeight` is the usual idiom for "the
+  viewport height" and on a real page of iris's own it reported 2583 — the CONTENT height —
+  while the viewport was 900. So a page that scrolls 2.5k pixels was judged unscrollable,
+  and its bottom row was called permanently buried.
+
+  A checker that fires on correct work teaches you to skim past it, which costs you the one
+  time it was right. `window.innerHeight` is the viewport.
+-->
+<style>
+  body { margin: 0; background: #ffffff; color: #111418; font: 16px/1.5 system-ui, sans-serif; }
+  main { padding: 24px; }
+  .tall { height: 2200px; }        /* far taller than any viewport: this page scrolls */
+  #bar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 40px; z-index: 60;
+    background: #0c0d11; color: #d6dbe4; font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
+
+<main>
+  <h1>This page scrolls.</h1>
+  <!-- push the next line down so it lands UNDER the bar at rest — same geometry as the
+       defect fixture. The only difference is that here, the reader can scroll it out. -->
+  <div style="height: 800px"></div>
+  <p id="under-the-bar-for-now">The bar lies over this line at rest — and one scroll moves it clear.</p>
+  <div class="tall"></div>
+  <p>The end of a long page.</p>
+</main>
+
+<div id="bar">a fixed bar · always here · at the bottom</div>

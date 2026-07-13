@@ -1,0 +1,51 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>a fixed bar printing over text that can never move</title>
+<!--
+  THE PAGE CANNOT SCROLL, and an opaque bar is fixed to the bottom of it, printing
+  through the last line of text. No scroll will ever move that line out from under the
+  bar: it is sliced in half forever. That is not stacking — it is clipping.
+
+  Three things on this page must be told apart, and only ONE of them is a defect:
+
+    #buried   — under an OPAQUE fixed bar, on a page that cannot scroll   → THE DEFECT
+    #ghosted  — under a TRANSPARENT fixed layer                           → fine, it paints nothing
+    #safe     — not under anything                                        → fine
+
+  The transparent layer is the trap. elementFromPoint() answers "what is on top for
+  HIT-TESTING", not "what actually paints here" — so a see-through overlay wins the hit
+  test over text it does not put a single pixel on. Measuring the wrong thing and
+  believing it is the bug this whole tool exists to catch.
+-->
+<style>
+  html, body { height: 100%; margin: 0; overflow: hidden; }   /* the page CANNOT scroll */
+  body { background: #ffffff; color: #111418; font: 16px/1.5 system-ui, sans-serif; }
+  main { padding: 24px; }
+  h1 { font-size: 24px; margin: 0 0 16px; }
+  p { margin: 0 0 12px; }
+
+  /* transparent — it covers nothing, and must never be reported */
+  #veil { position: fixed; inset: 0; background: transparent; z-index: 5; pointer-events: none; }
+
+  /* opaque, fixed, and sitting exactly on top of the last line */
+  #bar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 40px; z-index: 60;
+    background: #0c0d11; color: #d6dbe4; font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  /* Pinned so it STRADDLES the bar's top edge: the bar is 40px tall, this line is 24px,
+     and it sits 26px off the bottom — so roughly its lower half is printed over, and its
+     upper half is in plain sight. A slice, not a cover. Nobody intends a slice. */
+  #buried { position: absolute; left: 24px; bottom: 26px; margin: 0; }
+</style>
+
+<div id="veil"></div>
+
+<main>
+  <h1 id="safe">Nothing is on top of this heading.</h1>
+  <p id="ghosted">A transparent fixed layer lies across this line. It paints nothing, so it hides nothing.</p>
+</main>
+
+<p id="buried">This line is under the bar, and the page cannot scroll, so it can never get out.</p>
+
+<div id="bar">a fixed bar · always here · at the bottom</div>

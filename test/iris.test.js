@@ -599,3 +599,47 @@ test('when --pre fails, it hands you the picture of the page that failed it', ne
   assert.ok(existsSync(shot), 'and the screenshot is really on disk, not just named');
   assert.ok(statSync(shot).size > 1000, 'and it is a real picture, not an empty file');
 });
+
+// ── A FIXED BAR IS ALLOWED TO COVER WHAT YOU CAN SCROLL AWAY FROM ───────────────
+// The overlap check excludes everything inside a fixed/sticky layer, and it is right to:
+// a sticky bar over scrolled content is what a sticky bar is FOR, and calling that "text
+// printing over text" was a false positive removed on purpose.
+//
+// But the forgiveness had a hole. A bar may cover content the reader can SCROLL OUT FROM
+// UNDER IT. On a page that CANNOT SCROLL, nothing ever moves: the text under the bar is
+// sliced in half forever. That is not stacking — it is clipping, and it was sitting on
+// cortex's graph view, passing every gate, for weeks.
+test('a fixed bar over text on a page that CANNOT scroll is clipping it', async () => {
+  const run = await iris.look(fixture('underbar.html'), { viewports: 'desktop', themes: 'light' });
+  const found = rule(run, 'overlay-clip');
+  assert.equal(found.length, 1, `exactly one line is buried; got ${JSON.stringify(found)}`);
+  assert.match(found[0].selector, /buried/, 'and it is the line under the bar');
+  assert.equal(run.summary.passed, false, 'text you can never read is a defect');
+});
+
+// THE TRANSPARENT LAYER IS THE TRAP, and I fell in it.
+// elementFromPoint() answers "what is on top for HIT-TESTING" — not "what actually PAINTS
+// here". A see-through fixed layer wins the hit test over text it does not put a single
+// pixel on, and my first cut called a line "100% covered" with half of it in plain sight.
+// Which is the bug this tool exists to catch, committed by the check itself: the DOM
+// reported something the screen never showed, and the eye believed it.
+test('a TRANSPARENT fixed layer covers nothing, and is never reported', async () => {
+  const run = await iris.look(fixture('underbar.html'), { viewports: 'desktop', themes: 'light' });
+  const hit = rule(run, 'overlay-clip').map((v) => v.selector).join(' ');
+  assert.ok(!/ghosted/.test(hit), `a layer that paints nothing hides nothing; got ${hit}`);
+  assert.ok(!/safe/.test(hit), 'and text under nothing at all is certainly fine');
+});
+
+// THE NEGATIVE THAT MATTERS. Same bar, same text under it — but this page SCROLLS, so the
+// reader moves the line clear with one flick. Reporting that would fire on nearly every
+// long page on the web, and a checker that fires on correct work teaches you to skim past
+// it — which costs you the one time it was right.
+//
+// I nearly shipped it: `documentElement.clientHeight` is the usual idiom for "the viewport"
+// and on iris's own page it reported 2583 (the CONTENT height) against a 900px viewport, so
+// a page that scrolls 2.5k pixels was judged unscrollable. window.innerHeight is the viewport.
+test('a fixed bar over a page that DOES scroll is not a defect — you can scroll out from under it', async () => {
+  const run = await iris.look(fixture('underbar-scrolls.html'), { viewports: 'desktop', themes: 'light' });
+  assert.deepEqual(rule(run, 'overlay-clip'), [],
+    `the reader can scroll this line out from under the bar; got ${JSON.stringify(rule(run, 'overlay-clip'))}`);
+});
