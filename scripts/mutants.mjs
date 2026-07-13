@@ -48,6 +48,18 @@ const CANARIES = [
     find: '          if (!paints(top, lay)) continue;                            // see-through: it covers nothing',
     into: '          if (false) continue;',
   },
+  {
+    why: 'the phone viewport must really be a phone — a desktop pointer gets hover styles and lies about tap targets',
+    file: 'src/core.js',
+    find: '  phone: { width: 390, height: 844, mobile: true },',
+    into: '  phone: { width: 390, height: 844, mobile: false },',
+  },
+  {
+    why: 'a page with no viewport meta is laid out at 980px and scaled down — every size on it is a size in the wrong space',
+    file: 'src/audit.js',
+    find: "    const meta = document.querySelector('meta[name=\"viewport\" i]');",
+    into: '    const meta = true;',
+  },
 ];
 
 const run = () => spawnSync('npm', ['test'], { encoding: 'utf8', timeout: 300_000 }).status;
