@@ -840,3 +840,37 @@ test('runs() and report() coerce a bad --limit instead of hiding everything', as
     rmSync(out, { recursive: true, force: true });
   }
 });
+
+test('a run iris CANNOT READ is not a run that did not happen — it must never vanish silently', async () => {
+  // runs() used to `try { JSON.parse(...) } catch { return null }` and filter the nulls out. So a
+  // corrupt or half-written run.json made the run VANISH from the contact sheet — no error, no
+  // warning, and iris reported 2 runs where there were 3. That is the `|| true` blindfold: the tool
+  // quietly answers less than it claims, which is the ONE thing iris exists to catch in other people.
+  const { mkdirSync, writeFileSync, mkdtempSync, rmSync, readdirSync } = await import('node:fs');
+  const { tmpdir } = await import('node:os');
+  const out = mkdtempSync(join(tmpdir(), 'iris-unread-'));
+  const prev = process.env.IRIS_OUT;
+  process.env.IRIS_OUT = out;
+  try {
+    for (const id of ['run-a', 'run-c']) {
+      mkdirSync(join(out, id));
+      writeFileSync(join(out, id, 'run.json'), JSON.stringify({ id, summary: { passed: true } }));
+    }
+    mkdirSync(join(out, 'run-b'));
+    writeFileSync(join(out, 'run-b', 'run.json'), '{"id":"run-b","sum');   // half-written record
+
+    const rs = iris.runs({ limit: 10 });
+    assert.equal(rs.length, 3, 'all three runs come back — the unreadable one is not dropped');
+
+    const broken = rs.find((r) => r.id === 'run-b');
+    assert.ok(broken, 'the unreadable run is still listed');
+    assert.equal(broken.unreadable, true, 'and it SAYS it is unreadable');
+    assert.match(broken.error, /JSON/i, 'naming why, so it is not a dead end');
+
+    // The healthy runs are completely unaffected.
+    assert.equal(rs.find((r) => r.id === 'run-a').unreadable, undefined, 'a healthy run is not flagged');
+  } finally {
+    if (prev === undefined) delete process.env.IRIS_OUT; else process.env.IRIS_OUT = prev;
+    rmSync(out, { recursive: true, force: true });
+  }
+});

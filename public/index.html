@@ -73,7 +73,7 @@
   .run:hover { background:var(--panel-2); }
   .run.on { background:var(--panel-2); border-color:var(--line-2); }
   .run .v { flex:none; font-size:14px; line-height:1.4; }
-  .run .v.ok { color:var(--ok); } .run .v.bad { color:var(--bad); }
+  .run .v.ok { color:var(--ok); } .run .v.bad { color:var(--bad); } .run .v.warn { color:var(--warn); }
   .run .t { min-width:0; }
   .run .nm { font-family:var(--mono); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .run .sub { font-family:var(--mono); font-size:12px; color:var(--faint); }
@@ -338,6 +338,17 @@ $('#theme').addEventListener('click', () => {
 async function loadRuns(select) {
   RUNS = await api('/api/runs');
   $('#runs').innerHTML = RUNS.length ? RUNS.map((r) => {
+    // A run whose record iris cannot READ is not a run that FAILED. Rendered as a normal row it would
+    // show "✗ undefined · 0h 0m" — a wrong answer wearing the costume of a real one. Say what it is.
+    if (r.unreadable) {
+      return `<div class="run torn" data-id="${esc(r.id)}">
+        <span class="v warn">⚠</span>
+        <div class="t">
+          <div class="nm">${esc(r.id)}</div>
+          <div class="sub">record unreadable — not a failed run</div>
+        </div>
+      </div>`;
+    }
     const ok = r.summary?.passed;
     return `<div class="run ${CUR && CUR.id === r.id ? 'on' : ''}" data-id="${esc(r.id)}">
       <span class="v ${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'}</span>

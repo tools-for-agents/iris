@@ -11,7 +11,7 @@
 // play()  → for games: is the loop drawing, how fast, and does it answer input.
 //
 // Zero dependencies — the browser is driven over CDP by src/browser.js.
-import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync, renameSync, unlinkSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, resolve, isAbsolute, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -292,7 +292,7 @@ export async function look(target, opts = {}) {
     : null;
 
   const run = summarise({ id: runId, kind: 'look', target, url, dir, shots, design, canvases, blind });
-  writeFileSync(join(dir, 'run.json'), JSON.stringify(run, null, 2));
+  writeRunJson(dir, run);
   return run;
 }
 
@@ -484,7 +484,7 @@ export async function play(target, opts = {}) {
     shots: [{ viewport: opts.viewport || 'desktop', theme: opts.theme || 'dark', file: frames.at(-1)?.file,
       path: frames.at(-1)?.path, violations: v, counts: {}, console: session.page.console.slice(0, 20) }],
     frames, metrics, input: inputEffect, canvases, unique_frames: uniq, seconds, design });
-  writeFileSync(join(dir, 'run.json'), JSON.stringify(run, null, 2));
+  writeRunJson(dir, run);
   return run;
 }
 
@@ -607,14 +607,34 @@ export function report(run, { limit = 25 } = {}) {
 }
 
 // ── the run store: what the eye has already seen ─────────────────────────────
+// `run.json` is the record of a look. It is written beside the run and RENAMED into place, because
+// writeFileSync truncates first: a web view polling this directory could otherwise read a half-written
+// record. rename() is atomic on POSIX — a reader sees the whole record or no record, never half of one.
+function writeRunJson(dir, run) {
+  const abs = join(dir, 'run.json');
+  const tmp = `${abs}.${process.pid}.tmp`;
+  try { writeFileSync(tmp, JSON.stringify(run, null, 2)); renameSync(tmp, abs); }
+  catch (e) { try { unlinkSync(tmp); } catch { /* never leave the scratch file behind */ } throw e; }
+}
+
 export function runs({ limit = 30 } = {}) {
   limit = Number.isFinite(+limit) && +limit > 0 ? Math.floor(+limit) : 30;   // NaN → slice(0, NaN) hides every run
   const base = OUT();
   if (!existsSync(base)) return [];
   return readdirSync(base, { withFileTypes: true })
     .filter((d) => d.isDirectory() && existsSync(join(base, d.name, 'run.json')))
-    .map((d) => { try { return JSON.parse(readFileSync(join(base, d.name, 'run.json'), 'utf8')); } catch { return null; } })
-    .filter(Boolean)
+    .map((d) => {
+      try { return JSON.parse(readFileSync(join(base, d.name, 'run.json'), 'utf8')); }
+      catch (e) {
+        // 🔑 A RUN IT CANNOT READ IS NOT A RUN THAT DID NOT HAPPEN. This used to `return null` and get
+        // filtered out — so a corrupt record made the run VANISH from the contact sheet with no error
+        // and no warning, and iris reported 2 runs where there were 3. That is the `|| true` blindfold:
+        // the tool quietly answers less than it claims, which is the one thing iris exists to catch.
+        // Keep it, and SAY it is unreadable — a broken record is a fact about the run, not its absence.
+        return { id: d.name, unreadable: true, error: String(e.message).slice(0, 120),
+          summary: { total: 0, passed: null } };
+      }
+    })
     .sort((a, b) => (a.id < b.id ? 1 : -1))
     .slice(0, limit);
 }
