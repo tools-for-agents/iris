@@ -351,6 +351,31 @@ export function auditPage(opts) {
     const inputTarget = tag === 'input' && !TEXT_INPUT.includes(el.type || '')
       && !['hidden', 'range'].includes(el.type);
     if (!realTag && !roleBtn && !pointerRoot && !inputTarget) return;
+    // ── keyboard reachability ────────────────────────────────────────────────
+    // A control you can SEE and click but cannot TAB to is invisible to a keyboard user and
+    // unannounced to a screen reader. Native <a>/<button>/<select>/<input> get focus AND a role
+    // for free; a bare <div>/<span> made clickable (onclick, role=button, or cursor:pointer + a JS
+    // listener the DOM can't show) does NOT — unless it declares tabindex. It fires on the same
+    // made-clickable elements the tap-target check trusts, so it inherits that low false-positive
+    // rate. Excluded: <label> (its input carries the focus), <summary> (natively interactive), and
+    // anything WRAPPED BY a real control — but by an ANCESTOR, checked from the parent: closest()
+    // on the element itself would match a role=button div and wrongly skip it. Any tabindex at all
+    // (even -1, a roving/managed-focus widget) counts as "the author handled focus" — fire only
+    // when there is NONE. This is cortex's header stat (Cycle 97) and its inline .wl links:
+    // mouse-only, sighted-only. `medium` — a real a11y defect, but not "the page is visibly broken",
+    // so it does not (yet) gate the build. Checked before the size-oriented guards below, since a
+    // LARGE control is just as unreachable as a small one; visibility is its own condition.
+    if (!realTag && !inputTarget && tag !== 'label' && tag !== 'summary'
+        && r.width >= 1 && r.height >= 1
+        && el.getAttribute('tabindex') === null && !el.isContentEditable
+        && !(el.parentElement && el.parentElement.closest('button, a, select, [role="button"]'))) {
+      const role = el.getAttribute('role');
+      const how = el.hasAttribute('onclick') ? 'an onclick handler' : role === 'button' ? 'role="button"' : 'cursor:pointer';
+      add('unreachable-control', 'medium', el,
+        `looks clickable (${how}) but is not keyboard-reachable — no tabindex, and not a native <button>/<a>, `
+        + `so a keyboard user cannot Tab to it and a screen reader will not announce it as a control. `
+        + `Add tabindex="0"${role ? '' : ' + role="button"'} and an Enter/Space handler.`);
+    }
     // Wrapped by a real control? Then IT is the target you press, not this.
     if (!realTag && !inputTarget && el.closest('button, a, select, [role="button"]')) return;
     if (r.width < 1 || r.height < 1) return;

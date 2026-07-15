@@ -1,0 +1,35 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body { margin: 0; padding: 40px; font: 16px/1.5 system-ui, sans-serif; background: #fff; color: #111; }
+  .row { display: flex; gap: 16px; flex-wrap: wrap; margin: 12px 0; }
+  .card { padding: 16px 20px; border-radius: 10px; background: #1a5cff; color: #fff; }
+  .clickable { cursor: pointer; }
+  a, button { font: inherit; }
+  .plainbtn { padding: 12px 20px; border-radius: 8px; border: 1px solid #1a5cff; background: #fff; color: #1a5cff; }
+</style>
+
+<h1>Keyboard reachability</h1>
+
+<!-- MUST FIRE: made clickable, no tabindex, not native -->
+<div class="row">
+  <div class="card clickable" onclick="void 0">Onclick div (unreachable)</div>
+  <span class="card clickable" id="jslink">cursor:pointer span (unreachable)</span>
+  <div class="card" role="button">role=button, no tabindex (announced, unfocusable)</div>
+</div>
+
+<!-- MUST NOT FIRE: reachable and/or announced correctly, or native -->
+<div class="row">
+  <button class="plainbtn">Native button (fine)</button>
+  <a class="card" href="#somewhere">Native link (fine)</a>
+  <div class="card" role="button" tabindex="0">role=button + tabindex (fine)</div>
+  <div class="card clickable" tabindex="0" onclick="void 0">clickable + tabindex (fine)</div>
+  <label class="clickable" for="cb">Clickable label (its input takes focus)</label>
+  <input id="cb" type="checkbox">
+</div>
+
+<script>
+  // The .wl-style case: interactivity added by addEventListener, invisible to the DOM — only
+  // cursor:pointer betrays it. iris must still catch it.
+  document.getElementById('jslink').addEventListener('click', () => {});
+</script>

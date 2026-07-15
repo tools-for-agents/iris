@@ -31,6 +31,12 @@ const CANARIES = [
     hits: 2,   // auditPage AND critiquePage each have one; both must be watched
   },
   {
+    why: 'a control with NO tabindex is the unreachable one — invert the test and iris blesses every keyboard-unreachable button (cortex .wl, its header stat)',
+    file: 'src/audit.js',
+    find: "        && el.getAttribute('tabindex') === null && !el.isContentEditable",
+    into: "        && el.getAttribute('tabindex') !== null && !el.isContentEditable",
+  },
+  {
     why: "a box is intersected with its ancestors' clip — an element is only where you can SEE it",
     file: 'src/audit.js',
     find: '      const boxes = boxesOf(t.el).map((b) => clipBox(b, cl)).filter(Boolean);',

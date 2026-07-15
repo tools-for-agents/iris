@@ -45,6 +45,22 @@ test('the eye catches every defect on a page written without looking', needsChro
   assert.ok(existsSync(png) && statSync(png).size > 1000, 'a real PNG landed on disk');
 });
 
+// A control you can SEE and click but cannot TAB to is invisible to a keyboard and a screen reader.
+// The DOM shows the click handler only when it is an onclick attribute or a role; a cursor:pointer +
+// addEventListener control (cortex's .wl links, its header stat before Cycle 97) betrays itself only
+// by the cursor. iris must catch all three, and must NOT cry wolf on a native control or a <label>.
+test('a control you can click but cannot Tab to is flagged; a reachable one is not', needsChrome, async () => {
+  const run = await iris.look(fixture('unreachable.html'), { viewports: 'desktop', themes: 'light' });
+  const uc = rule(run, 'unreachable-control');
+  assert.equal(uc.length, 3, `expected exactly 3 unreachable controls, got ${uc.length}: ${uc.map((v) => v.selector).join(', ')}`);
+  assert.ok(uc.some((v) => /Onclick div/.test(v.text)), 'an onclick <div> with no tabindex');
+  assert.ok(uc.some((v) => /#jslink/.test(v.selector)), 'a cursor:pointer span made clickable by addEventListener (the .wl case)');
+  assert.ok(uc.some((v) => /role=button, no tabindex/.test(v.text)), 'a role=button div with no tabindex — announced, but unfocusable');
+  // Every reachable/native/label control is fine — only 3 fired, and none of them is one of these.
+  assert.ok(!uc.some((v) => /\(fine\)|Clickable label/.test(v.text)),
+    'a native <button>/<a>, a role=button+tabindex, a clickable+tabindex div, and a <label> are all reachable — never flagged');
+});
+
 // A PHONE THAT REPORTS A DESKTOP POINTER IS NOT A PHONE.
 //
 // iris emulates touch only when a viewport is marked `mobile`, and browser.js says why in its
