@@ -365,7 +365,12 @@ export function auditPage(opts) {
     // mouse-only, sighted-only. `medium` — a real a11y defect, but not "the page is visibly broken",
     // so it does not (yet) gate the build. Checked before the size-oriented guards below, since a
     // LARGE control is just as unreachable as a small one; visibility is its own condition.
-    if (!realTag && !inputTarget && tag !== 'label' && tag !== 'summary'
+    // EVERY native form control is keyboard-focusable, not just the ones `inputTarget` counts as tap
+    // targets: a <input type=range> slider and a <input type=checkbox> take arrow/space keys and focus
+    // with no tabindex at all. Excluding only `inputTarget` flagged recall's budget slider (a range
+    // input, which inputTarget deliberately ignores) as "unreachable" — it is not. Exclude the whole
+    // family: <input>, <textarea> (and realTag already covers <a>/<button>/<select>).
+    if (!realTag && tag !== 'input' && tag !== 'textarea' && tag !== 'label' && tag !== 'summary'
         && r.width >= 1 && r.height >= 1
         && el.getAttribute('tabindex') === null && !el.isContentEditable
         && !(el.parentElement && el.parentElement.closest('button, a, select, [role="button"]'))) {

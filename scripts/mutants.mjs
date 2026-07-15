@@ -37,6 +37,12 @@ const CANARIES = [
     into: "        && el.getAttribute('tabindex') !== null && !el.isContentEditable",
   },
   {
+    why: 'a native <input> (a range slider, a checkbox) is keyboard-focusable with no tabindex — stop excluding it and iris cries wolf on every form control (recall\'s budget slider)',
+    file: 'src/audit.js',
+    find: "    if (!realTag && tag !== 'input' && tag !== 'textarea' && tag !== 'label' && tag !== 'summary'",
+    into: "    if (!realTag && tag !== 'zzz' && tag !== 'textarea' && tag !== 'label' && tag !== 'summary'",
+  },
+  {
     why: "a box is intersected with its ancestors' clip — an element is only where you can SEE it",
     file: 'src/audit.js',
     find: '      const boxes = boxesOf(t.el).map((b) => clipBox(b, cl)).filter(Boolean);',

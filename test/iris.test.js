@@ -59,6 +59,8 @@ test('a control you can click but cannot Tab to is flagged; a reachable one is n
   // Every reachable/native/label control is fine — only 3 fired, and none of them is one of these.
   assert.ok(!uc.some((v) => /\(fine\)|Clickable label/.test(v.text)),
     'a native <button>/<a>, a role=button+tabindex, a clickable+tabindex div, and a <label> are all reachable — never flagged');
+  assert.ok(!uc.some((v) => /#slider|#check/.test(v.selector)),
+    'a native <input type=range>/checkbox is keyboard-accessible with no tabindex — never flagged (recall’s budget slider was a false positive)');
 });
 
 // A PHONE THAT REPORTS A DESKTOP POINTER IS NOT A PHONE.
