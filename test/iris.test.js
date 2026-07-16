@@ -720,6 +720,25 @@ test('a fixed bar over a page that DOES scroll is not a defect — you can scrol
     `the reader can scroll this line out from under the bar; got ${JSON.stringify(rule(run, 'overlay-clip'))}`);
 });
 
+// AND THE PAGE IS NOT THE ONLY THING THAT SCROLLS — the negative the negative above missed.
+//
+// The check only runs when the PAGE cannot scroll, and took that to mean "nothing under the bar
+// ever moves". Every app shell in this kit says body{height:100vh;overflow:hidden} and scrolls a
+// pane INSIDE it, so `html` never moves BY DESIGN and the reader still flicks the text clear.
+//
+// iris called lens's search results "text that can never be moved out from under it". Measured on
+// that page: the covered line moved 129px with one scroll of the results pane, which already
+// reserves 40px of padding under a 37px bar — so even the last hit clears. Not merely wrong: the
+// opposite of true, on correct work, about to fail that repo's gate. A checker that fires on
+// correct work teaches you to skim past it, which costs you the one time it was right — and this
+// one gates every repo in the kit.
+test('a fixed bar over a PANE that scrolls is not a defect — even when the page cannot', async () => {
+  const run = await iris.look(fixture('underbar-inner-scroll.html'), { viewports: 'desktop', themes: 'light' });
+  assert.deepEqual(rule(run, 'overlay-clip'), [],
+    `the reader scrolls the PANE and the line comes clear; got ${JSON.stringify(rule(run, 'overlay-clip'))}`);
+  assert.equal(run.summary.passed, true, 'and an app shell with a fixed bar is not a broken page');
+});
+
 // THE PAGE NEVER TOLD THE PHONE IT WAS A PAGE FOR A PHONE.
 //
 // Without <meta name="viewport">, a phone does not lay the page out at 390px. It lays it out at

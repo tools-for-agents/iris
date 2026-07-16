@@ -551,9 +551,34 @@ export function auditPage(opts) {
       }
       return false;
     };
+    // AND THE PAGE IS NOT THE ONLY THING THAT SCROLLS.
+    //
+    // `pageScrolls` asks whether <html> moves. Every app shell in this kit answers NO ON PURPOSE —
+    // body{height:100vh;overflow:hidden} with the list scrolling INSIDE it — so the premise this
+    // whole check rests on ("the page cannot scroll, therefore nothing under the bar ever moves")
+    // is false exactly where these tools live.
+    //
+    // It called lens's search results "text that can never be moved out from under it". Measured on
+    // that page: the covered line moves 129px with one flick of the results pane, and the pane
+    // already reserves 40px of bottom padding under a 37px bar, so the last hit clears it too.
+    // The verdict was not just wrong, it was the opposite of true — and it is the same mistake this
+    // check already documents twice above: the DOM answered a question I did not ask. `html` not
+    // scrolling does not mean the READER cannot scroll THIS TEXT.
+    //
+    // A checker that fires on correct work teaches you to skim past it, which costs you the one time
+    // it was right — and this one gates every repo in the kit.
+    const canBeScrolledClear = (el) => {
+      for (let n = el.parentElement; n && n.nodeType === 1; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        if (!/(auto|scroll|overlay)/.test(`${cs.overflowY} ${cs.overflow}`)) continue;
+        if (n.scrollHeight > n.clientHeight + 2) return true;   // it has somewhere to go
+      }
+      return false;
+    };
     for (const t of texts.slice(0, 400)) {
       const box = clipBox(t.el.getBoundingClientRect(), clipOf(t.el));
       if (!box || box.width < 8 || box.height < 6) continue;
+      if (canBeScrolledClear(t.el)) continue;   // a bar over what you can scroll away from is what a bar is FOR
       const mine = layerOf(t.el);
       let probes = 0, covered = 0, by = null;
       for (let gx = 1; gx <= 7; gx++) {

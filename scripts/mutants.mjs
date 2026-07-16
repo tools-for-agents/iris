@@ -84,6 +84,12 @@ const CANARIES = [
     find: '        return { id: d.name, unreadable: true, error: String(e.message).slice(0, 120),',
     into: '        return null; void e; return { id: d.name, unreadable: true, error: String(e.message).slice(0, 120),',
   },
+  {
+    why: 'a fixed bar over a PANE that scrolls is not clipping — `html` not scrolling does not mean the reader cannot scroll THIS text, and every app shell in this kit (body{height:100vh;overflow:hidden} + an inner scroller) says html never moves ON PURPOSE. Without this, iris calls lens\'s search results "text that can never be moved out from under it" and fails a gate on correct work',
+    file: 'src/audit.js',
+    find: '      if (canBeScrolledClear(t.el)) continue;',
+    into: '      if (false) continue;',
+  },
 ];
 
 // iris drives a real headless Chrome across the whole suite, so it is far slower than the other

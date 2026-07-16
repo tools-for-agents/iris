@@ -1,0 +1,60 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a fixed bar over a pane that scrolls — the app shell every tool in this kit is built on</title>
+<!--
+  THE NEGATIVE THAT THE FIRST NEGATIVE MISSED.
+
+  underbar-scrolls.html proves a fixed bar is forgiven when THE PAGE scrolls. But this check
+  only ran at all when the page CANNOT scroll — and took that to mean "nothing under the bar
+  ever moves". That premise is false in the one layout every tool in this kit uses:
+
+      body { height: 100vh; overflow: hidden }   <- the page never scrolls, ON PURPOSE
+      .pane { overflow: auto }                   <- the content scrolls in here
+
+  So `html` does not move, and the reader still scrolls the text clear with one flick. iris
+  called lens's search results "text that can never be moved out from under it". Measured on
+  that page: the covered line moved 129px, and the pane already reserves 40px of padding
+  under a 37px bar, so even the LAST line clears. The verdict was not merely wrong — it was
+  the opposite of true, on correct work, and it was about to fail that repo's gate.
+
+  The same mistake this check documents twice already: the DOM answered a question I did not
+  ask. `html` not scrolling does not mean the READER cannot scroll THIS TEXT.
+
+  GEOMETRY (copied from underbar.html, which this must mirror in every way but the scroller):
+  the line STRADDLES the bar's top edge — bar is 37px at the bottom of a 900px viewport, so
+  its top is 863. Header 49px + pane padding 24 + spacer 782 puts this line's top at 855: its
+  lower half is printed over, its upper half is in plain sight. A slice, not a cover.
+
+  This fixture must stay CLEAN. underbar.html (no scroller anywhere) must still FAIL.
+-->
+<style>
+  html, body { margin: 0; height: 100%; }
+  body {
+    height: 100vh; overflow: hidden;            /* the page itself never scrolls */
+    background: #ffffff; color: #111418; font: 16px/1.5 system-ui, sans-serif;
+    display: grid; grid-template-rows: auto 1fr;
+  }
+  /* fixed height, so the line below lands where the comment says it does */
+  header { height: 48px; padding: 0 24px; display: flex; align-items: center;
+           border-bottom: 1px solid #d5dbe1; font-weight: 600; }
+  /* the pane that actually scrolls — and it reserves 40px under the 37px bar, so even the
+     last line clears once you reach the end */
+  .pane { overflow: auto; padding: 24px 24px 40px; }
+  .tall { height: 1600px; }                     /* the pane has somewhere to scroll TO */
+  #bar {
+    position: fixed; left: 0; right: 0; bottom: 0; height: 37px; z-index: 60;
+    background: #0c0d11; color: #d6dbe4; font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+  }
+</style>
+
+<header>An app shell: the page is fixed, the pane scrolls.</header>
+<div class="pane">
+  <div style="height: 782px"></div>
+  <p id="under-the-bar-for-now" style="margin:0">The bar lies over this line at rest — and one scroll of the pane moves it clear.</p>
+  <div class="tall"></div>
+  <p style="margin:0">The end of a long pane.</p>
+</div>
+
+<div id="bar">a fixed bar · always here · at the bottom</div>
