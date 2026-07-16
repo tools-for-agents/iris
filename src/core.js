@@ -209,6 +209,9 @@ export async function look(target, opts = {}) {
   let canvases = [];
   let spots = null;
   let design = null;
+  // Every --hover selector, and how many nodes it reached across ALL renders. A selector that
+  // lands on desktop but not phone is answered; one that lands NOWHERE was never audited at all.
+  const hoverLanded = new Map();
   try {
     // `boot` lands before the app's first line runs, so it can change the world the app
     // wakes up in — most usefully, break the API. Every one of these UIs is a shell that
@@ -238,9 +241,25 @@ export async function look(target, opts = {}) {
         // And it must MATCH SOMETHING. A selector that hits nothing would render the page at rest
         // and report it as the hover state — the same lie as auditing an empty room, wearing the
         // costume of a state name.
+        //
+        // 🔑 AND A LIST IS ONLY AS HONEST AS ITS WEAKEST MEMBER. Forcing `.a, .b` in ONE
+        // querySelectorAll returns ONE number, so a list where only `.a` exists is indistinguishable
+        // from one where both do — the refusal above only fires when EVERY selector misses. That is
+        // not hypothetical: the first real sweep asked lens for its 18 hover states and reached 7.
+        // iris said "✓ nothing broken", and the 11 it never rendered included `.ch-btn` — the button
+        // whose :hover shipped at 2.72:1 and had to be found BY HAND, which is the entire reason
+        // --hover exists. A near-miss reported as a pass is worse than no check: I nearly banked
+        // "lens's hover states are clean" on the strength of it.
+        //
+        // So force them ONE AT A TIME and count each. What was never reached is named below.
         if (opts.hover) {
-          const n = await session.page.forceState(opts.hover, ['hover']);
-          if (!n) throw new Error(`--hover ${opts.hover} matched NOTHING, so the hover state was never `
+          let hit = 0;
+          for (const sel of splitSelectors(opts.hover)) {
+            const n = await session.page.forceState(sel, ['hover']);
+            hoverLanded.set(sel, (hoverLanded.get(sel) ?? 0) + n);
+            hit += n;
+          }
+          if (!hit) throw new Error(`--hover ${opts.hover} matched NOTHING, so the hover state was never `
             + `reached and everything below would be about the page at rest`);
         }
         const png = await session.page.screenshot({ fullPage: !!opts.full });
@@ -298,13 +317,41 @@ export async function look(target, opts = {}) {
     reasons.push(`${frames > 1 ? `${frames} iframes are` : 'an iframe is'} embedded here, and every check runs against `
       + `the TOP document — a frame is a separate one, audited by nobody`);
   }
+  // You NAMED these states. Reaching some of them and reporting a clean verdict lets you read
+  // "the hover states are fine" off a run that never rendered them — so say which, by name, and
+  // say what would reach them. The picture cannot help here: the element is not on the page at all.
+  const missed = [...hoverLanded].filter(([, n]) => n === 0).map(([sel]) => sel);
+  if (missed.length) {
+    reasons.push(`${missed.length} of ${hoverLanded.size} --hover selectors matched NOTHING here `
+      + `(${missed.join(', ')}), so those states were never rendered and nothing above is about them — `
+      + `drive the page to where they exist (--pre) and look again`);
+  }
   const blind = reasons.length
-    ? { canvases: inked.length, iframes: frames, reasons }
+    ? { canvases: inked.length, iframes: frames, hover_missed: missed, reasons }
     : null;
 
   const run = summarise({ id: runId, kind: 'look', target, url, dir, shots, design, canvases, blind });
   writeRunJson(dir, run);
   return run;
+}
+
+// Split a selector LIST the way CSS does: on TOP-LEVEL commas only. `:not(.a, .b)` and
+// `:is(h1, h2) .x` are each ONE selector with a comma inside, and a naive split makes two
+// fragments that match nothing — inventing the exact blindness the caller above exists to
+// report, and blaming the page for it.
+export function splitSelectors(list) {
+  const out = [];
+  let depth = 0, quote = null, cur = '';
+  for (const ch of list) {
+    if (quote) { cur += ch; if (ch === quote) quote = null; continue; }
+    if (ch === '"' || ch === "'") { quote = ch; cur += ch; continue; }
+    if (ch === '(' || ch === '[') depth++;
+    else if (ch === ')' || ch === ']') depth--;
+    else if (ch === ',' && depth === 0) { if (cur.trim()) out.push(cur.trim()); cur = ''; continue; }
+    cur += ch;
+  }
+  if (cur.trim()) out.push(cur.trim());
+  return out;
 }
 
 // ── tokens: read the system a page is ALREADY using ──────────────────────────
@@ -592,7 +639,9 @@ export function report(run, { limit = 25 } = {}) {
   if (run.blind) {
     if (!s.passed) L.push('   …and I could not see all of it:');
     for (const r of run.blind.reasons) L.push(`     · ${r}.`);
-    L.push('     LOOK AT THE PICTURE. It is the only thing that can.');
+    // Only where the pixels ARE the missing evidence. For a hover state that was never on the
+    // page, the picture shows nothing to look at — telling you to look would be a shrug.
+    if (run.blind.canvases || run.blind.iframes) L.push('     LOOK AT THE PICTURE. It is the only thing that can.');
   }
 
   const order = { high: 0, medium: 1, low: 2 };

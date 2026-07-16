@@ -21,6 +21,7 @@ const chrome = (await import('../src/browser.js')).findChrome();
 const needsChrome = { skip: chrome ? false : 'no Chrome found (set IRIS_CHROME)' };
 
 const rule = (run, r) => run.violations.filter((v) => v.rule === r);
+const summary = (run) => iris.report(run);
 
 test('the eye catches every defect on a page written without looking', needsChrome, async () => {
   const run = await iris.look(fixture('broken.html'), { viewports: 'desktop', themes: 'light' });
@@ -1023,4 +1024,44 @@ test('--hover that matches nothing REFUSES, rather than reporting the page at re
     () => iris.look(fixture('hoverdark.html'), { viewports: 'desktop', themes: 'dark', hover: '.no-such-thing' }),
     /matched NOTHING/,
     'it says the state was never reached');
+});
+
+// 🔑 A LIST IS ONLY AS HONEST AS ITS WEAKEST MEMBER.
+//
+// The refusal above is all-or-nothing, and a LIST hides in the gap. `--hover '.a, .b'` where only
+// `.a` exists forced ONE querySelectorAll, got a nonzero count, and passed — indistinguishable from
+// both landing. The first real sweep asked lens for its 18 hover states and reached 7; iris printed
+// "✓ nothing broken" and the 11 it never rendered included `.ch-btn` — the button whose :hover
+// shipped at 2.72:1 and had to be found BY HAND, which is the entire reason --hover exists.
+// I nearly banked "lens's hover states are clean" on the strength of that green.
+test('--hover names the selectors in a list that matched NOTHING, instead of passing on the ones that did', needsChrome, async () => {
+  const run = await iris.look(fixture('hoverdark.html'),
+    { viewports: 'desktop', themes: 'dark', hover: '.safe, .ghost, .phantom' });
+
+  assert.ok(run.blind, 'a run that reached 1 of 3 named states has not checked them — it has partly checked them');
+  assert.deepEqual(run.blind.hover_missed, ['.ghost', '.phantom'], 'BY NAME: which states were never rendered');
+  assert.match(summary(run), /2 of 3 --hover selectors matched NOTHING/,
+    'the count is in the headline, where a verdict is read');
+  assert.match(summary(run), /IN WHAT I COULD SEE/,
+    'and "nothing broken" can never be read alone off a run that never rendered what it was asked for');
+});
+
+test('--hover says nothing about blindness when every selector in the list landed', needsChrome, async () => {
+  // `.safe, p` and not `.safe, .btn`: .safe IS a .btn, so listing .btn would force the 1.4:1 button
+  // too and fail for the RIGHT reason at the wrong moment — this test is about the absence of a gap.
+  const run = await iris.look(fixture('hoverdark.html'), { viewports: 'desktop', themes: 'dark', hover: '.safe, p' });
+  assert.equal(run.blind, null, 'both are on the page and both were forced — there is no gap to report');
+  assert.match(summary(run), /✓ nothing broken$/m, 'and an unqualified pass must still be sayable, or the warning is noise');
+});
+
+// A comma inside :not(…) / :is(…) is not a separator. Splitting on it naively invents two fragments
+// that match nothing — manufacturing the exact blindness this reports, and blaming the page for it.
+test('a selector list splits the way CSS splits it, not the way String.split does', () => {
+  assert.deepEqual(iris.splitSelectors('.a, .b'), ['.a', '.b']);
+  assert.deepEqual(iris.splitSelectors('.a:not(.x, .y), .b'), ['.a:not(.x, .y)', '.b'],
+    'the comma inside :not() belongs to the selector that contains it');
+  assert.deepEqual(iris.splitSelectors(':is(h1, h2) .t'), [':is(h1, h2) .t']);
+  assert.deepEqual(iris.splitSelectors('[data-x="a,b"], .c'), ['[data-x="a,b"]', '.c'],
+    'a comma inside a quoted attribute value is data, not syntax');
+  assert.deepEqual(iris.splitSelectors('.a,, , .b'), ['.a', '.b'], 'empty fragments are not selectors that "matched nothing"');
 });

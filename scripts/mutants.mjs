@@ -91,9 +91,21 @@ const CANARIES = [
     into: '      if (false) continue;',
   },
   {
+    why: 'a LIST is only as honest as its weakest member — forcing `.a, .b` in ONE querySelectorAll returns ONE count, so a list where only .a exists looks exactly like both landing. The first real sweep asked lens for its 18 hover states and reached 7: iris said "nothing broken", and the 11 it never rendered included .ch-btn, whose :hover shipped at 2.72:1 and had to be found BY HAND',
+    file: 'src/core.js',
+    find: '  const missed = [...hoverLanded].filter(([, n]) => n === 0).map(([sel]) => sel);',
+    into: '  const missed = [];',
+  },
+  {
+    why: 'a selector list must split the way CSS splits it — a comma inside :not(.x, .y) is not a separator, and splitting on it invents two fragments that match nothing, manufacturing the very blindness this reports and blaming the page for it',
+    file: 'src/core.js',
+    find: "    else if (ch === ',' && depth === 0) { if (cur.trim()) out.push(cur.trim()); cur = ''; continue; }",
+    into: "    else if (ch === ',') { if (cur.trim()) out.push(cur.trim()); cur = ''; continue; }",
+  },
+  {
     why: 'a --hover that matches NOTHING must REFUSE — otherwise it renders the page AT REST and files it under the state\'s name, which is auditing an empty room wearing the costume of a state',
     file: 'src/core.js',
-    find: '          if (!n) throw new Error(`--hover ${opts.hover} matched NOTHING, so the hover state was never `',
+    find: '          if (!hit) throw new Error(`--hover ${opts.hover} matched NOTHING, so the hover state was never `',
     into: '          if (false) throw new Error(`--hover ${opts.hover} matched NOTHING, so the hover state was never `',
   },
   {
