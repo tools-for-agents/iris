@@ -151,9 +151,37 @@ class Page {
 
   // Both halves of how themes are actually implemented in the wild: the media
   // query, and the `data-theme` attribute apps stamp on <html> for their toggle.
-  async theme(name) {
+  // 🔑 AND `prefers-reduced-motion: reduce`, WHICH IS NOT A DETAIL — IT IS WHY THE PICTURE
+  // IS THE SAME PICTURE TWICE.
+  //
+  // A screenshot of a page mid-animation is a frame nobody was meant to read, and the audit
+  // then grades the frame. recall's briefing cards enter with `animation: rise .28s both`;
+  // a gate that waited for `.hit` to EXIST photographed them at ~40% opacity and reported
+  // "concept · retrieval-budget" at 2.92:1 — a `high`, on text that is 16:1 once it lands.
+  // It passed on my laptop and failed on CI, which is the signature of a race, not a defect:
+  // the finding was iris's own shutter speed.
+  //
+  // Waiting for the animations to END is not available: a spinner, a pulse, a drifting
+  // nebula never end, and this kit has all three. Reduced motion is: it is a REAL setting a
+  // REAL audience uses (vestibular disorders), every page here already declares what it means
+  // — `@media (prefers-reduced-motion: reduce) { .hit { animation:none } }` — and it makes the
+  // render deterministic, because an entrance animation's whole purpose is to arrive at the
+  // base state, which is exactly what this renders.
+  //
+  // The trade is honest and worth naming: a page whose FINAL state exists only inside its
+  // keyframes (`opacity:0` + `animation: fadeIn forwards`) renders here as it renders for a
+  // reduced-motion user — invisible. That is not iris missing a defect. That IS the defect,
+  // and it is one nobody in this kit was looking for either.
+  // …EXCEPT WHERE THE MOTION IS THE MEASUREMENT. `play` exists to count frames and catch
+  // hitches, and a reduced-motion render of a game is a still photograph of a racetrack. It
+  // asks for 'no-preference' on purpose: the honest default for LOOKING at a page is the
+  // opposite of the honest default for WATCHING one move.
+  async theme(name, { motion = 'reduce' } = {}) {
     await this.send('Emulation.setEmulatedMedia', {
-      features: [{ name: 'prefers-color-scheme', value: name }],
+      features: [
+        { name: 'prefers-color-scheme', value: name },
+        { name: 'prefers-reduced-motion', value: motion },
+      ],
     });
     await this.evaluate((t) => { document.documentElement.dataset.theme = t; }, name);
   }

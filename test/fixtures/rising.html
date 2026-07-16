@@ -1,0 +1,44 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a card that is only unreadable on its way in</title>
+<!--
+  A SCREENSHOT OF A PAGE MID-ANIMATION IS A FRAME NOBODY WAS MEANT TO READ.
+
+  recall's briefing cards enter with `animation: rise .28s both`. A gate that waited for
+  `.hit` to EXIST photographed them at ~40% opacity and reported
+
+      [high] contrast — div#briefing > div.hit > div.ref
+      “concept · retrieval-budget” — 2.92:1
+
+  about text that is 16:1 once it lands. It passed on a laptop and failed on CI: the
+  signature of a race, not a defect. The finding was iris's own shutter speed, and it is
+  the most expensive kind of wrong a gate can be — it sends you hunting a bug that was
+  never there, in a file that was always right.
+
+  Waiting for the animation to end is not available: a spinner, a pulse, a drifting nebula
+  never end, and this kit ships all three. Reduced motion is available, it is a REAL setting
+  a REAL audience uses, and every page here already declares what it means. It also makes
+  the render deterministic, because an entrance animation's whole job is to arrive at the
+  base state — which is exactly what this renders.
+
+  This page is that bug, distilled: the ink lands at 15.8:1 and starts at 1.2:1.
+-->
+<style>
+  body { margin: 0; background: #0b0d12; color: #e6e9f0; font: 16px/1.5 system-ui, sans-serif; padding: 40px; }
+
+  /* Deliberately slow, so the race is not a race: any screenshot taken while this runs
+     catches ink that is still on its way in. `both` holds the FROM state before it starts,
+     which is why even an instant shutter sees 0.04 opacity rather than the real colour. */
+  @keyframes rise { from { opacity: .04; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+  .card {
+    background: #0b0d12; border: 1px solid #242a37; border-radius: 12px; padding: 16px;
+    animation: rise 30s linear both;
+  }
+  .ref { color: #e6e9f0; }   /* 15.8:1 when it has landed — nothing is wrong with this page */
+
+  /* The page's own answer, which iris now takes it at its word on. */
+  @media (prefers-reduced-motion: reduce) { .card { animation: none; } }
+</style>
+
+<div class="card"><div class="ref">concept · retrieval-budget</div></div>

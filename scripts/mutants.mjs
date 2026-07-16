@@ -103,6 +103,12 @@ const CANARIES = [
     into: '    return true;',
   },
   {
+    why: 'the eye must not grade a page ON ITS WAY IN — recall\'s briefing cards enter with `animation: rise .28s both`, and a gate that waited for .hit to EXIST photographed them at ~40% opacity and called 16:1 text 2.92:1, a `high`. It passed on a laptop and failed in CI: the signature of a race, not a defect. Reduced motion is what makes the frame the settled one — and what a real audience actually sees',
+    file: 'src/browser.js',
+    find: "        { name: 'prefers-reduced-motion', value: motion },",
+    into: '',
+  },
+  {
     why: 'the list must not UNFORCE ITSELF — re-requesting the document discards every nodeId it handed out, and a forced pseudo-state is attached to a nodeId, so a getDocument per selector unforced everything before it and ONLY THE LAST SELECTOR was ever rendered. Each was still reported as LANDED (it matched nodes), so `blind` stayed silent while iris graded the page at rest and called it the hover state. It invalidated a whole kit-wide sweep: six repos came back "clean" having rendered one state each, and anvil\'s 4.42:1 was in the list the whole time',
     file: 'src/browser.js',
     find: "    const { root } = await this.send('DOM.getDocument', { depth: -1 });\n    const landed = [];\n    for (const selector of selectors) {",

@@ -409,7 +409,9 @@ export async function play(target, opts = {}) {
   let metrics = null, inputEffect = null, canvases = [];
   try {
     await page.viewport(vp);
-    await page.theme(opts.theme || 'dark');
+    // 'no-preference': play COUNTS frames. Reducing motion here would stop the thing being
+    // measured and then report that it never stutters — a still photograph of a racetrack.
+    await page.theme(opts.theme || 'dark', { motion: 'no-preference' });
     await page.goto(url, { waitMs: 200 });
     // Instrument AFTER load: a game that installs its own rAF wrapper on boot
     // would otherwise be wrapping ours, and we'd count its frames twice.

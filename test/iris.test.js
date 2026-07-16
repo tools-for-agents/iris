@@ -1129,3 +1129,31 @@ test('every selector in the list is still forced when the last one has been — 
     { viewports: 'desktop', themes: 'dark', hover: '.safe, .btn' });
   assert.equal(reversed.summary.passed, run.summary.passed, 'reversing the list must not change the verdict');
 });
+
+// ── a frame nobody was meant to read ─────────────────────────────────────────
+// recall's briefing cards enter with `animation: rise .28s both`. A gate that waited for
+// `.hit` to EXIST photographed them at ~40% opacity and called "concept · retrieval-budget"
+// 2.92:1 — a `high` — about text that is 16:1 once it lands. It passed on a laptop and
+// failed in CI: the signature of a race, not a defect. The finding was iris's own shutter
+// speed, and a gate that invents defects sends you hunting a bug in a file that was right.
+test('the eye does not grade a page on its way in — the ink that is still arriving is not the ink', needsChrome, async () => {
+  const run = await iris.look(fixture('rising.html'), { viewports: 'desktop', themes: 'dark' });
+  assert.deepEqual(rule(run, 'contrast'), [],
+    'the card lands at 15.8:1; only a shutter fired mid-animation ever sees 1.2:1. '
+    + `got ${JSON.stringify(rule(run, 'contrast').map((v) => v.detail))}`);
+  assert.equal(run.summary.passed, true);
+});
+
+// The page says what it means under reduced motion, and iris takes it at its word — that is
+// the whole basis for reading the settled frame rather than a random one. So it must really
+// be asking, not accidentally winning a 30-second race.
+test('the render really is asking for reduced motion, not out-running the animation', needsChrome, async () => {
+  const { open } = await import('../src/browser.js');
+  const s = await open();
+  try {
+    await s.page.theme('dark');
+    await s.page.goto(iris.toUrl(fixture('rising.html')));
+    const matches = await s.page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
+    assert.equal(matches, true, 'the page must SEE the preference — that is what turns its own animation off');
+  } finally { await s.close(); }
+});
