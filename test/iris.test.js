@@ -133,6 +133,39 @@ test('a real game passes: the loop runs, the frames differ, and it answers the k
   assert.equal(run.summary.passed, true);
 });
 
+// ...AND THE SAME DEFECT ON 558 NUMBERED SIBLINGS IS ALSO ONE BUG.
+// The dedupe keyed on the raw selector, and sel() disambiguates with whatever the DOM gives it —
+// so a code gutter came back as div#L1 > span.n, div#L2 > span.n, … : 558 keys for one fact. The
+// first audit of lens's reader opened with "284 high". Nobody reads 284. They read "this gate is
+// noise" and skim — which is how the one that mattered gets missed. A report that buries you costs
+// exactly what a false positive costs; it just does it by volume.
+test('a defect on numbered siblings is ONE row with a count, not one row each', () => {
+  const many = Array.from({ length: 40 }, (_, i) => ({
+    rule: 'unreachable-control', severity: 'medium', selector: `div#L${i + 1} > span.n`,
+    text: String(i + 1), detail: 'looks clickable but is not keyboard-reachable',
+    viewport: 'desktop', theme: 'dark',
+  }));
+  // …and two headings that differ only by the digit in their TAG must NOT be merged: h1 and h2
+  // are not two of the same thing, and collapsing them would hide a real difference.
+  const heads = [
+    { rule: 'contrast', severity: 'medium', selector: 'h1 > span', text: 'One', detail: '3:1', viewport: 'desktop', theme: 'dark' },
+    { rule: 'contrast', severity: 'medium', selector: 'h2 > span', text: 'Two', detail: '3:1', viewport: 'desktop', theme: 'dark' },
+  ];
+  const txt = iris.report({
+    kind: 'look', target: 'x', summary: { passed: false, high: 0, medium: 42, low: 0 },
+    shots: [{ viewport: 'desktop', theme: 'dark' }],
+    violations: [...many, ...heads], console_errors: [],
+  });
+
+  const gutter = txt.split('\n').filter((l) => l.includes('unreachable-control'));
+  assert.equal(gutter.length, 1, `the gutter is one row; got ${gutter.length}`);
+  assert.match(gutter[0], /×40 elements/, 'and it says how many wear it');
+  assert.match(gutter[0], /div#L1 > span\.n/, 'while still printing a selector you can paste into devtools');
+
+  const contrast = txt.split('\n').filter((l) => l.includes('contrast'));
+  assert.equal(contrast.length, 2, `h1 and h2 are different elements and stay separate; got ${contrast.length}`);
+});
+
 // The same defect at three viewports is ONE bug. A report that lists it three
 // times buries the other two bugs under it.
 test('the report collapses one defect across viewports instead of repeating it', needsChrome, async () => {

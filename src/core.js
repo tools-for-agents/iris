@@ -530,6 +530,14 @@ function inputWord(i) {
 
 // A briefing an agent can act on: what is wrong, where, and nothing else. Kept
 // short on purpose — a 4000-token wall of violations gets skimmed, not fixed.
+// The SHAPE of a selector: what it would be if the numbered siblings were one sibling.
+// `div#L1 > span.n` and `div#L558 > span.n` are the same fact about the same gutter.
+// Only digits that ATTACH to an id/class token, or sit in an nth-child index, are collapsed —
+// `h1` and `h2` are different elements, and merging their rows would hide a real difference.
+const shapeOf = (s) => String(s)
+  .replace(/([#.][A-Za-z_-]*)\d+/g, '$1№')
+  .replace(/:nth-child\(\d+\)/g, ':nth-child(№)');
+
 export function report(run, { limit = 25 } = {}) {
   // bad limit (NaN from a non-numeric --limit → slice(0, NaN) shows ZERO findings, looking like a clean run) → default
   limit = Number.isFinite(+limit) && +limit > 0 ? Math.floor(+limit) : 25;
@@ -569,7 +577,18 @@ export function report(run, { limit = 25 } = {}) {
     // differ per viewport ("scrolls by 960px" vs "by 2010px"), so keying on it split
     // one bug into one row per viewport — which is precisely the burying this dedupe
     // exists to prevent.
-    const key = v.rule + '|' + v.selector;
+    //
+    // AND THE SAME DEFECT ON 558 NUMBERED SIBLINGS IS STILL ONE DEFECT. sel() disambiguates
+    // with whatever the DOM gives it, so a code gutter comes back as `div#L1 > span.n`,
+    // `div#L2 > span.n`, … — 558 distinct keys for one fact, and the reader's audit opened
+    // with "284 high". Nobody reads 284. They read "this gate is noise" and skim, which is
+    // exactly how the one that mattered gets missed — the same way a false positive costs you,
+    // just by volume instead. Collapse the digits INSIDE id/class tokens and nth-child indices
+    // for the KEY only; the row still prints a real selector you can paste into devtools, and
+    // says how many elements wear it.
+    //
+    // Digits in a TAG are left alone on purpose: h1 and h2 are not two of the same thing.
+    const key = v.rule + '|' + shapeOf(v.selector);
     if (!seen.has(key)) seen.set(key, { ...v, where: new Set(), n: 0 });
     const e = seen.get(key);
     // A Set — one selector often matches SEVERAL elements (four rows in a list),

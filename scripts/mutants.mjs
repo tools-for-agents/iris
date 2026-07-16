@@ -90,6 +90,12 @@ const CANARIES = [
     find: '      if (canBeScrolledClear(t.el)) continue;',
     into: '      if (false) continue;',
   },
+  {
+    why: 'one defect on 558 numbered siblings is ONE row — keyed on the raw selector, a code gutter (div#L1 > span.n … div#L558 > span.n) became 558 findings and the report opened with "284 high". Nobody reads 284; they read "this gate is noise" and skim, which costs exactly what a false positive costs',
+    file: 'src/core.js',
+    find: "    const key = v.rule + '|' + shapeOf(v.selector);",
+    into: "    const key = v.rule + '|' + v.selector;",
+  },
 ];
 
 // iris drives a real headless Chrome across the whole suite, so it is far slower than the other
