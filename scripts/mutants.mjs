@@ -91,6 +91,12 @@ const CANARIES = [
     into: '      if (false) continue;',
   },
   {
+    why: 'an AA contrast failure must FAIL THE BUILD — tokens.json declares contrastAA 4.5 and the verdict only counted `high`, which a contrast finding is not until 3.0. The declared number was 4.5 and the enforced number was 3.0, so everything between shipped: scout\'s brain button sat at 3.84:1 inside a green build',
+    file: 'src/core.js',
+    find: '      passed: high === 0 && aa === 0 && errors.length === 0 },',
+    into: '      passed: high === 0 && errors.length === 0 },',
+  },
+  {
     why: 'one defect on 558 numbered siblings is ONE row — keyed on the raw selector, a code gutter (div#L1 > span.n … div#L558 > span.n) became 558 findings and the report opened with "284 high". Nobody reads 284; they read "this gate is noise" and skim, which costs exactly what a false positive costs',
     file: 'src/core.js',
     find: "    const key = v.rule + '|' + shapeOf(v.selector);",

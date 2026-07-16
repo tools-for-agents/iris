@@ -489,7 +489,10 @@ export async function play(target, opts = {}) {
 }
 
 // ── the verdict ──────────────────────────────────────────────────────────────
-function summarise(run) {
+// exported so the VERDICT can be tested directly: it is the one function that decides whether a
+// build fails, and it is pure — a run's shots in, a summary out. No browser required to ask it
+// "would you have shipped this".
+export function summarise(run) {
   const all = run.shots.flatMap((s) => (s.violations || []).map((v) => ({ ...v, viewport: s.viewport, theme: s.theme })));
   const errors = run.shots.flatMap((s) => (s.console || []).filter((c) => c.level === 'exception' || c.level === 'error'));
 
@@ -508,13 +511,26 @@ function summarise(run) {
   // not a footnote.
   const exceptions = errors.filter((e) => e.level === 'exception').length;
   const high = by('high') + exceptions;
+  // 🔑 A DECLARED THRESHOLD THAT DOES NOT FAIL THE BUILD IS A SUGGESTION.
+  //
+  // tokens.json says contrastAA: 4.5. The gate said `passed = high === 0`, and a contrast finding is
+  // only `high` at need-1.5 — so the number this kit DECLARES was 4.5 and the number it ENFORCED was
+  // 3.0. Everything in between shipped: scout's "🧠 → cortex" at 3.84:1 sat in a green build until a
+  // human read the report, and reverting that fix does not turn the gate red even now.
+  //
+  // The severity tiers stay — they say HOW FAR under, and 1.3:1 (invisible) is a different morning
+  // from 4.4:1 (nearly). That belongs in the report. It does not belong in the verdict: every
+  // contrast finding here is already `cr < need`, measured against the threshold its own tokens
+  // file names. Failing on it is what makes the declaration mean anything.
+  const aa = D.filter((v) => v.rule === 'contrast').length;
   return {
     ...run,
     violations: all,
     console_errors: errors,
     summary: { total: D.length, high, medium: by('medium'), low: by('low'),
+      aa_failures: aa,
       sightings: all.length, console_errors: errors.length,
-      passed: high === 0 && errors.length === 0 },
+      passed: high === 0 && aa === 0 && errors.length === 0 },
   };
 }
 const RANK = { high: 0, medium: 1, low: 2 };

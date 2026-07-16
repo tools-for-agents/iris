@@ -944,3 +944,42 @@ test('a run iris CANNOT READ is not a run that did not happen — it must never 
     rmSync(out, { recursive: true, force: true });
   }
 });
+
+// ── THE NUMBER IN tokens.json IS NOT A SUGGESTION ─────────────────────────────
+// The kit DECLARES contrastAA: 4.5. The gate said `passed = high === 0`, and a contrast finding is
+// only `high` at need-1.5 — so the declared number was 4.5 and the ENFORCED number was 3.0. Every
+// AA failure in between shipped in a green build: scout's "🧠 → cortex" sat at 3.84:1 until a human
+// read the report, and before this, reverting that fix did not turn the gate red.
+//
+// The severity tiers stay, because 1.3:1 (invisible) is a different morning from 4.4:1 (nearly), and
+// the report should say which. The VERDICT is not a place for nearly.
+const shot = (violations) => ({ viewport: 'desktop', theme: 'dark', violations, console: [] });
+const mkRun = (violations) => summarise({
+  id: 'r', kind: 'look', target: 't', url: 't', dir: '/tmp',
+  shots: [shot(violations)], design: { findings: [] }, canvases: [],
+});
+const { summarise } = iris;
+
+test('an AA contrast failure fails the build, even at 4.4:1', () => {
+  const near = mkRun([{ rule: 'contrast', severity: 'medium', selector: 'p', text: 'x',
+    detail: 'contrast 4.40:1 against its background — WCAG AA wants 4.5:1 for body text' }]);
+  assert.equal(near.summary.passed, false, '4.40:1 is under the declared 4.5 — that is a failure, not a note');
+  assert.equal(near.summary.aa_failures, 1, 'and the summary says how many');
+  assert.equal(near.summary.high, 0, 'while still reporting it as the medium it is — 4.4 is not 1.3');
+});
+
+test('…and the report stops saying “nothing broken” about it', () => {
+  const txt = iris.report(mkRun([{ rule: 'contrast', severity: 'medium', selector: 'p', text: 'x',
+    detail: 'contrast 4.40:1 against its background — WCAG AA wants 4.5:1 for body text' }]));
+  assert.ok(!/nothing broken/.test(txt), `the headline must not bless it; got: ${txt.split('\n')[2]}`);
+  assert.match(txt, /0 high · 1 medium/, 'it reports what it found');
+});
+
+test('a page with no AA failure still passes — this is a threshold, not a hair shirt', () => {
+  assert.equal(mkRun([]).summary.passed, true, 'clean is clean');
+  const low = mkRun([{ rule: 'tap-target', severity: 'low', selector: 'a', text: 'x', detail: '52×19px' }]);
+  assert.equal(low.summary.passed, true, 'a low finding is still not a build failure');
+  const unreach = mkRun([{ rule: 'unreachable-control', severity: 'medium', selector: 'div', text: 'x', detail: 'no tabindex' }]);
+  assert.equal(unreach.summary.passed, true,
+    'and a NON-contrast medium is unchanged — this cycle enforces the number tokens.json declares, nothing more');
+});
