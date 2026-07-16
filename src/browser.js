@@ -244,6 +244,48 @@ class Page {
     return false;   // busy page; we looked as long as we sensibly could
   }
 
+  // ── :hover, rendered ─────────────────────────────────────────────────────
+  //
+  // A hover state is CSS that nobody has ever looked at. It cannot be posed from the page — adding
+  // a class reaches .armed or .done, but :hover is the browser's own, and JS cannot set it. So the
+  // whole class went unaudited across the kit, and it is not hypothetical: lens shipped
+  // `.ch-btn.brain:hover { color:#a78bfa }` at 2.72:1 on light, found by hand, because no gate
+  // could render it.
+  //
+  // CDP can. forcePseudoState pins the state on the node itself, so it is deterministic and it can
+  // hold on MANY elements at once — unlike moving a mouse, which hovers one thing, wherever it
+  // happens to land, and un-hovers it the moment anything moves.
+  async forceState(selector, states = ['hover']) {
+    await this.send('DOM.enable');
+    // 🔑 AND THE OBSERVER MUST NOT REPORT ITS OWN FOOTPRINT AS THE PAGE'S DEFECT.
+    //
+    // forcePseudoState needs the CSS agent ("CSS agent was not enabled" without it). Enabling it
+    // makes Chrome fetch the page's stylesheet sources — and on a file:// page, which is a UNIQUE
+    // security origin, fetching its own stylesheet is a cross-origin violation. Chrome logs
+    // "Unsafe attempt to load URL file://X from frame with URL file://X", iris counts console
+    // errors as build failures, and so `--hover` on `iris look ./game.html` — the commonest thing
+    // an agent does with this tool — would have failed EVERY page, for a error the page did not
+    // make and a user could never fix. The tool would have been reporting itself.
+    //
+    // So: note where the log is, enable, and drop ONLY an error that is (a) new, (b) exactly this
+    // signature, and (c) about the page's own file: URL. A real cross-origin error from the page,
+    // or this one on http://, still counts — this is a scalpel, not a blanket.
+    const before = this.console.length;
+    await this.send('CSS.enable');
+    const mine = (e) => e.level === 'error'
+      && /Unsafe attempt to load URL file:/.test(e.text)
+      && (!e.url || String(e.url).startsWith('file:'));
+    for (let i = this.console.length - 1; i >= before; i--) {
+      if (mine(this.console[i])) this.console.splice(i, 1);
+    }
+    const { root } = await this.send('DOM.getDocument', { depth: -1 });
+    const { nodeIds } = await this.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector });
+    for (const nodeId of nodeIds) {
+      await this.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: states });
+    }
+    return nodeIds.length;
+  }
+
   async screenshot({ fullPage = false } = {}) {
     const r = await this.send('Page.captureScreenshot', {
       format: 'png',

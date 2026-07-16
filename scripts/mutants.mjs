@@ -91,6 +91,18 @@ const CANARIES = [
     into: '      if (false) continue;',
   },
   {
+    why: 'a --hover that matches NOTHING must REFUSE — otherwise it renders the page AT REST and files it under the state\'s name, which is auditing an empty room wearing the costume of a state',
+    file: 'src/core.js',
+    find: '          if (!n) throw new Error(`--hover ${opts.hover} matched NOTHING, so the hover state was never `',
+    into: '          if (false) throw new Error(`--hover ${opts.hover} matched NOTHING, so the hover state was never `',
+  },
+  {
+    why: 'the observer must not report its OWN footprint as the page\'s defect — forcePseudoState needs the CSS agent, and enabling it makes Chrome fetch a file:// page\'s own stylesheets, which is a cross-origin violation it then LOGS. iris fails a build on console errors, so --hover on `iris look ./game.html` would have failed every local page for an error the page did not make',
+    file: 'src/browser.js',
+    find: '      if (mine(this.console[i])) this.console.splice(i, 1);',
+    into: '      void mine;',
+  },
+  {
     why: 'an AA contrast failure must FAIL THE BUILD — tokens.json declares contrastAA 4.5 and the verdict only counted `high`, which a contrast finding is not until 3.0. The declared number was 4.5 and the enforced number was 3.0, so everything between shipped: scout\'s brain button sat at 3.84:1 inside a green build',
     file: 'src/core.js',
     find: '      passed: high === 0 && aa === 0 && errors.length === 0 },',

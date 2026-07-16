@@ -1,0 +1,36 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>a button that is only unreadable while you are pointing at it</title>
+<!--
+  A HOVER STATE IS CSS NOBODY HAS EVER LOOKED AT.
+  
+  It cannot be posed from inside the page: adding a class reaches .armed or .done, but :hover is the
+  browser's own and JS cannot set it. So the whole class went unaudited across this kit — and it is
+  not hypothetical. lens shipped
+  
+      .ch-btn.brain        { color: var(--brain) }     ← fixed in C146
+      .ch-btn.brain:hover  { color: #a78bfa    }     ← 2.72:1 on light, still a literal
+  
+  one line below the other, for two more cycles, because no gate could render the second one. It was
+  found by hand.
+  
+  This page is that bug, distilled: #8ab4ff at rest (7.8:1 — fine), #2a3550 on hover (1.4:1 — the
+  text is the button). Without --hover it is clean and iris says so honestly. With --hover it is a
+  defect. The difference between those two runs is the whole point of the flag.
+-->
+<style>
+  body { margin: 0; background: #101418; color: #e6ebf5; font: 16px/1.5 system-ui, sans-serif; padding: 40px; }
+  .btn {
+    display: inline-flex; align-items: center; min-height: 24px;
+    background: #101418; border: 1px solid #2a3550; border-radius: 8px; padding: 8px 16px;
+    color: #8ab4ff;              /* 7.8:1 on the page — readable at rest */
+    font: inherit; cursor: pointer;
+  }
+  .btn:hover { color: #2a3550; } /* 1.4:1 — legible only while you are NOT pointing at it */
+  .safe:hover { color: #8ab4ff; } /* a hover that changes nothing readable — must never be reported */
+</style>
+
+<p>At rest this button is fine. Point at it and the label sinks into the background.</p>
+<button class="btn">🧠 → cortex</button>
+<button class="btn safe">this one is honest</button>

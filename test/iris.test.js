@@ -983,3 +983,44 @@ test('a page with no AA failure still passes — this is a threshold, not a hair
   assert.equal(unreach.summary.passed, true,
     'and a NON-contrast medium is unchanged — this cycle enforces the number tokens.json declares, nothing more');
 });
+
+// ── :hover, rendered ─────────────────────────────────────────────────────────
+// A hover state is CSS nobody has ever looked at. It cannot be posed from inside the page — a class
+// reaches .armed or .done, but :hover is the browser's own and JS cannot set it. So the class went
+// unaudited across the whole kit, and it is not hypothetical: lens shipped
+//   .ch-btn.brain       { color: var(--brain) }   ← fixed in C146
+//   .ch-btn.brain:hover { color: #a78bfa }        ← 2.72:1 on light, two cycles later
+// one line apart, because no gate could render the second. It was found by hand.
+test('--hover renders the state, and the same page is honestly clean without it', needsChrome, async () => {
+  const at_rest = await iris.look(fixture('hoverdark.html'), { viewports: 'desktop', themes: 'dark' });
+  assert.deepEqual(rule(at_rest, 'contrast'), [],
+    'at rest the button is 7.8:1 — the page really is clean, and iris must not invent a hover it was not asked for');
+  assert.equal(at_rest.summary.passed, true);
+
+  const hovered = await iris.look(fixture('hoverdark.html'), { viewports: 'desktop', themes: 'dark', hover: '.btn' });
+  const c = rule(hovered, 'contrast');
+  assert.ok(c.some((v) => /button\.btn/.test(v.selector) && /1\.5\d:1/.test(v.detail)),
+    `the hover ink is 1.52:1 and only --hover can see it; got ${JSON.stringify(c.map((v) => v.selector))}`);
+  assert.equal(hovered.summary.passed, false, 'a state you can only reach by pointing at it is still a state that ships');
+});
+
+// 🔑 THE OBSERVER MUST NOT REPORT ITS OWN FOOTPRINT AS THE PAGE'S DEFECT.
+// forcePseudoState needs the CSS agent, and enabling it makes Chrome fetch the page's stylesheets —
+// on a file:// page (a unique security origin) that is a cross-origin violation, and Chrome logs
+// "Unsafe attempt to load URL file://…". iris fails a build on console errors, so --hover on
+// `iris look ./game.html` — the commonest thing an agent does with this tool — would have failed
+// EVERY local page, for an error the page did not make and nobody could fix.
+test('--hover on a file:// page does not invent the console error that looking causes', needsChrome, async () => {
+  const run = await iris.look(fixture('hoverdark.html'), { viewports: 'desktop', themes: 'dark', hover: '.btn' });
+  assert.deepEqual(run.console_errors, [],
+    `the only error here was the one CSS.enable provoked about the fixture's own file: URL; got ${JSON.stringify(run.console_errors)}`);
+});
+
+// A selector that matches nothing would render the page AT REST and file it under the state's name —
+// the same lie as auditing an empty room, wearing the costume of a state.
+test('--hover that matches nothing REFUSES, rather than reporting the page at rest as the hover state', needsChrome, async () => {
+  await assert.rejects(
+    () => iris.look(fixture('hoverdark.html'), { viewports: 'desktop', themes: 'dark', hover: '.no-such-thing' }),
+    /matched NOTHING/,
+    'it says the state was never reached');
+});

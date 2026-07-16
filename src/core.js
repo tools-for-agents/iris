@@ -232,6 +232,17 @@ export async function look(target, opts = {}) {
           }
         }
         await applyPre(session.page, opts.pre, dir, `${vp}-${theme}-FAILED.png`);
+        // AFTER --pre, on purpose: a posed element (.armed, .done) can be hovered too, and the pre
+        // may have re-rendered the nodes this pins the state onto.
+        //
+        // And it must MATCH SOMETHING. A selector that hits nothing would render the page at rest
+        // and report it as the hover state — the same lie as auditing an empty room, wearing the
+        // costume of a state name.
+        if (opts.hover) {
+          const n = await session.page.forceState(opts.hover, ['hover']);
+          if (!n) throw new Error(`--hover ${opts.hover} matched NOTHING, so the hover state was never `
+            + `reached and everything below would be about the page at rest`);
+        }
         const png = await session.page.screenshot({ fullPage: !!opts.full });
         const file = `${vp}-${theme}.png`;
         writeFileSync(join(dir, file), png);
