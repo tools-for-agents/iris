@@ -103,6 +103,12 @@ const CANARIES = [
     into: '    return true;',
   },
   {
+    why: 'the list must not UNFORCE ITSELF — re-requesting the document discards every nodeId it handed out, and a forced pseudo-state is attached to a nodeId, so a getDocument per selector unforced everything before it and ONLY THE LAST SELECTOR was ever rendered. Each was still reported as LANDED (it matched nodes), so `blind` stayed silent while iris graded the page at rest and called it the hover state. It invalidated a whole kit-wide sweep: six repos came back "clean" having rendered one state each, and anvil\'s 4.42:1 was in the list the whole time',
+    file: 'src/browser.js',
+    find: "    const { root } = await this.send('DOM.getDocument', { depth: -1 });\n    const landed = [];\n    for (const selector of selectors) {",
+    into: "    const landed = [];\n    for (const selector of selectors) {\n      const { root } = await this.send('DOM.getDocument', { depth: -1 });",
+  },
+  {
     why: 'a LIST is only as honest as its weakest member — forcing `.a, .b` in ONE querySelectorAll returns ONE count, so a list where only .a exists looks exactly like both landing. The first real sweep asked lens for its 18 hover states and reached 7: iris said "nothing broken", and the 11 it never rendered included .ch-btn, whose :hover shipped at 2.72:1 and had to be found BY HAND',
     file: 'src/core.js',
     find: '  const missed = [...hoverLanded].filter(([, n]) => n === 0).map(([sel]) => sel);',

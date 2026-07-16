@@ -255,7 +255,25 @@ class Page {
   // CDP can. forcePseudoState pins the state on the node itself, so it is deterministic and it can
   // hold on MANY elements at once — unlike moving a mouse, which hovers one thing, wherever it
   // happens to land, and un-hovers it the moment anything moves.
-  async forceState(selector, states = ['hover']) {
+  // 🔑 ONE getDocument FOR THE WHOLE LIST, AND THAT IS THE WHOLE POINT.
+  //
+  // Re-requesting the document DISCARDS every nodeId it handed out before, and a forced
+  // pseudo-state is attached to a nodeId. So calling getDocument per selector UNFORCES
+  // everything forced before it: only the LAST selector in the list was ever rendered.
+  //
+  //   --hover ".run"          → 2 findings      (anvil's selected row, 4.42:1)
+  //   --hover ".run, .xtk a"  → ✓ nothing broken   ← .run forced, then wiped
+  //   --hover ".xtk a, .run"  → 2 findings      ← .run forced last, survives
+  //
+  // And it reported every selector as LANDED, because each one genuinely matched nodes —
+  // so `blind` said nothing, and iris printed a clean verdict about states it had unforced
+  // itself. That is C158's bug wearing C158's fix as a costume, and strictly worse: the
+  // version it replaced at least only lied when a selector matched nothing.
+  //
+  // It invalidated an entire kit-wide sweep. Six repos came back "clean" having rendered one
+  // state each; anvil's 4.42:1 was on the page the whole time, in the list, and iris said
+  // nothing broken. Ask the document ONCE, then force everything against that root.
+  async forceStates(selectors, states = ['hover']) {
     await this.send('DOM.enable');
     // 🔑 AND THE OBSERVER MUST NOT REPORT ITS OWN FOOTPRINT AS THE PAGE'S DEFECT.
     //
@@ -279,11 +297,15 @@ class Page {
       if (mine(this.console[i])) this.console.splice(i, 1);
     }
     const { root } = await this.send('DOM.getDocument', { depth: -1 });
-    const { nodeIds } = await this.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector });
-    for (const nodeId of nodeIds) {
-      await this.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: states });
+    const landed = [];
+    for (const selector of selectors) {
+      const { nodeIds } = await this.send('DOM.querySelectorAll', { nodeId: root.nodeId, selector });
+      for (const nodeId of nodeIds) {
+        await this.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: states });
+      }
+      landed.push([selector, nodeIds.length]);
     }
-    return nodeIds.length;
+    return landed;
   }
 
   async screenshot({ fullPage = false } = {}) {

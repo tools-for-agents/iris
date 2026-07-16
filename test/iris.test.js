@@ -1103,3 +1103,29 @@ test('an inline link with no prose around it is not exempt — the exception is 
   assert.match(nav[0].detail, /^\d+×\d+px — smaller than the 24px minimum touch target$/);
   assert.ok(nav.every((v) => v.rect[3] < 24), 'each is genuinely under the minimum it is reported against');
 });
+
+// 🔑 THE LIST MUST NOT UNFORCE ITSELF.
+//
+// Re-requesting the document discards every nodeId it handed out, and a forced pseudo-state is
+// attached to a nodeId — so a getDocument per selector unforced everything before it, and only
+// the LAST selector in the list was ever rendered. Every other one was reported as LANDED (it
+// matched nodes, so `blind` stayed silent) while iris graded it at rest. Measured on anvil:
+//   --hover ".run"         → 2 findings      --hover ".run, .xtk a" → ✓ nothing broken
+//   --hover ".xtk a, .run" → 2 findings      (the same page, three times, one of them lying)
+// It invalidated a whole kit-wide sweep: six repos reported "clean" having rendered one state each.
+test('every selector in the list is still forced when the last one has been — the list must not unforce itself', needsChrome, async () => {
+  // `.btn` matches BOTH buttons; `.safe` matches only the honest one, and comes LAST on purpose.
+  // If forcing `.safe` unforces `.btn`, the 1.5:1 button is rendered at rest and the page reads clean.
+  const run = await iris.look(fixture('hoverdark.html'),
+    { viewports: 'desktop', themes: 'dark', hover: '.btn, .safe' });
+
+  assert.ok(rule(run, 'contrast').some((v) => /button\.btn$/.test(v.selector)),
+    'the 1.5:1 hover ink must survive a later selector in the same list; '
+    + `got ${JSON.stringify(rule(run, 'contrast').map((v) => v.selector))}`);
+  assert.equal(run.summary.passed, false);
+
+  // …and the order of a list is not a fact about the page.
+  const reversed = await iris.look(fixture('hoverdark.html'),
+    { viewports: 'desktop', themes: 'dark', hover: '.safe, .btn' });
+  assert.equal(reversed.summary.passed, run.summary.passed, 'reversing the list must not change the verdict');
+});

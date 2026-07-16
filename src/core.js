@@ -252,10 +252,13 @@ export async function look(target, opts = {}) {
         // "lens's hover states are clean" on the strength of it.
         //
         // So force them ONE AT A TIME and count each. What was never reached is named below.
+        // ONE call, ONE getDocument: asking for the document again throws away the nodeIds the
+        // last answer was built on, and the forced state goes with them. Per-selector calls
+        // unforced each other and rendered only the last.
         if (opts.hover) {
+          const landed = await session.page.forceStates(splitSelectors(opts.hover), ['hover']);
           let hit = 0;
-          for (const sel of splitSelectors(opts.hover)) {
-            const n = await session.page.forceState(sel, ['hover']);
+          for (const [sel, n] of landed) {
             hoverLanded.set(sel, (hoverLanded.get(sel) ?? 0) + n);
             hit += n;
           }
