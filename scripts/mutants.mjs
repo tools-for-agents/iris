@@ -91,6 +91,18 @@ const CANARIES = [
     into: '      if (false) continue;',
   },
   {
+    why: "WCAG 2.5.8 says 24px and then says when it does NOT — \"the target is in a sentence or its size is otherwise constrained by the line-height of non-target text\". iris shipped the number without the exception and called scout's reader `1 high` on a phone for the sentence \"Already read: the reconnect piece\" — every article an agent writes, broken on every paragraph with a link in it",
+    file: 'src/audit.js',
+    find: '    if (inlineInSentence(el)) return;',
+    into: '    if (false) return;',
+  },
+  {
+    why: 'the exception is the SENTENCE, not the tag — a nav of links side by side is display:inline too, and nothing constrains those, so exempting on inline alone would go quiet on exactly the targets WCAG expects to be sized. A rule that stops crying wolf by going blind is a quieter silence, not a fix',
+    file: 'src/audit.js',
+    find: '    return nonTargetText(el.parentElement).trim().length > 0;',
+    into: '    return true;',
+  },
+  {
     why: 'a LIST is only as honest as its weakest member — forcing `.a, .b` in ONE querySelectorAll returns ONE count, so a list where only .a exists looks exactly like both landing. The first real sweep asked lens for its 18 hover states and reached 7: iris said "nothing broken", and the 11 it never rendered included .ch-btn, whose :hover shipped at 2.72:1 and had to be found BY HAND',
     file: 'src/core.js',
     find: '  const missed = [...hoverLanded].filter(([, n]) => n === 0).map(([sel]) => sel);',

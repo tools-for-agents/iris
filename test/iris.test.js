@@ -1065,3 +1065,36 @@ test('a selector list splits the way CSS splits it, not the way String.split doe
     'a comma inside a quoted attribute value is data, not syntax');
   assert.deepEqual(iris.splitSelectors('.a,, , .b'), ['.a', '.b'], 'empty fragments are not selectors that "matched nothing"');
 });
+
+// ── WCAG 2.5.8 says 24px, and then says when it does not ─────────────────────
+// iris shipped the number without the exception:
+//   "Inline: The target is in a sentence or its size is otherwise constrained by the
+//    line-height of non-target text."
+// So it reported scout's reader as `1 high` — on a phone, the severity that FAILS A BUILD —
+// for the sentence "Already read: the reconnect piece. Not yet: an unread essay." Nothing was
+// wrong with that sentence; it is what prose IS. Every article, doc and blog post an agent
+// wrote would have been called broken on every paragraph containing a link.
+test('a link in a sentence is not a tap target — the line box is what sizes it, and WCAG says so', needsChrome, async () => {
+  const run = await iris.look(fixture('prose-links.html'), { viewports: 'phone', themes: 'dark' });
+  const taps = rule(run, 'tap-target');
+
+  assert.ok(!taps.some((v) => /p > a$/.test(v.selector)),
+    `the prose links are 145×18px because the paragraph's line-height says so — the author cannot `
+    + `reach 24 without restyling the sentence around them; got ${JSON.stringify(taps.map((v) => v.selector))}`);
+
+  // A rule that stops crying wolf by going blind is not a fix, it is a quieter silence.
+  const still = (re) => assert.ok(taps.some((v) => re.test(v.selector)), `must still catch ${re}`);
+  still(/nav > a$/);            // a row of links is not a sentence: nothing constrains these
+  still(/a\.chip$/);            // inline-BLOCK takes a height — the line box is not what stops it
+  still(/button\.tiny$/);       // a lone 16px button is the case the rule is FOR
+  assert.equal(run.summary.passed, false, 'and the page still fails, on the three that are real');
+});
+
+test('an inline link with no prose around it is not exempt — the exception is the sentence, not the tag', needsChrome, async () => {
+  const run = await iris.look(fixture('prose-links.html'), { viewports: 'phone', themes: 'dark' });
+  // three sightings, one per link — the "(×3 elements)" in the report is the REPORT collapsing
+  // them, not the data. Assert the data.
+  const nav = rule(run, 'tap-target').filter((v) => /nav > a$/.test(v.selector));
+  assert.equal(nav.length, 3, 'the nav links are display:inline too — what they lack is non-target text');
+  assert.match(nav[0].detail, /27×18px/);
+});

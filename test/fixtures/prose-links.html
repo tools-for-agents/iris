@@ -1,0 +1,61 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>links in a sentence, and links that are only pretending to be</title>
+<!--
+  WCAG 2.5.8 (Target Size, Minimum) SAYS 24px AND THEN SAYS WHEN IT DOES NOT.
+
+  Its INLINE exception, verbatim:
+
+      "The target is in a sentence or its size is otherwise constrained by the
+       line-height of non-target text."
+
+  A link inside a paragraph is that case. Its height IS the line box — 23px at this
+  font — and the author cannot reach 24 without changing the line-height of the prose
+  around it, which is why the exception exists at all. iris shipped the 24 and not the
+  exception, so it reported scout's reader as `1 high` — on a phone, the severity that
+  FAILS A BUILD — for the sentence "Already read: the reconnect piece. Not yet: an
+  unread essay."
+
+  Nothing was wrong with that sentence. It is what prose looks like. And an agent
+  pointing iris at any article, doc, or blog post it had just written would have been
+  told its own correct work was broken, at `high`, on every paragraph containing a
+  link. That is the most expensive kind of wrong a gate can be: this repo already
+  knows it — "Nobody reads 284; they read 'this gate is noise' and skim, which costs
+  exactly what a false positive costs."
+
+  So: the exception is the target's, not the page's. Everything BELOW the prose here is
+  a target WCAG does NOT exempt, and iris must still catch every one of them — a rule
+  that stops crying wolf by going blind is not a fix, it is a louder silence.
+-->
+<style>
+  body { margin: 0; background: #101418; color: #e6ebf5;
+         font: 16px/1.44 system-ui, sans-serif; padding: 24px; }
+  a { color: #8ab4ff; }
+  /* 🔑 the exempt case: an inline link, in a sentence, sized by the line box (≈23px). */
+  p { max-width: 34em; }
+
+  /* NOT exempt — a row of links is not a sentence: there is no non-target text between
+     them constraining anything, so the author is free to size them and WCAG expects it. */
+  nav a { display: inline; margin-right: 14px; }
+
+  /* NOT exempt — display:inline-block takes a height. The line box is not what is
+     stopping this from being 24px tall; the author is. */
+  .chip { display: inline-block; height: 18px; padding: 0 8px; border: 1px solid #2a3550;
+          border-radius: 9px; font-size: 11px; line-height: 18px; text-decoration: none; }
+
+  /* NOT exempt — a real button, standing alone, 16px tall. */
+  .tiny { display: block; height: 16px; width: 60px; margin-top: 12px;
+          background: #1a2030; color: #e6ebf5; border: 1px solid #2a3550; font-size: 11px; }
+</style>
+
+<p>
+  Already read: <a href="#a">the reconnect piece</a>. Not yet: <a href="#b">an unread essay</a>.
+  Again the same: <a href="#a">the reconnect piece</a>. Itself: <a href="#c">home</a>.
+</p>
+
+<nav><a href="#n1">one</a><a href="#n2">two</a><a href="#n3">three</a></nav>
+
+<p><a class="chip" href="#chip">a chip in a sentence is still a chip</a></p>
+
+<button class="tiny">press</button>

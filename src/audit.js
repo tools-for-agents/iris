@@ -57,6 +57,31 @@ export function auditPage(opts) {
   }
   const label = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60);
 
+  // The text around a target that is NOT itself a target — the "non-target text" WCAG 2.5.8's
+  // Inline exception is named after. A link's own label is not the sentence it sits in, and
+  // neither is the label of the link beside it: `<nav><a>one</a><a>two</a></nav>` has no prose
+  // holding its line-height hostage, so those are targets the author can and should size.
+  const TARGETISH = 'a, button, select, textarea, [role="button"], [role="link"], [role="tab"]';
+  const nonTargetText = (root) => {
+    let s = '';
+    const walk = (node) => {
+      for (const n of node.childNodes) {
+        if (n.nodeType === 3) { s += n.textContent; continue; }
+        if (n.nodeType !== 1 || n.matches?.(TARGETISH)) continue;
+        walk(n);
+      }
+    };
+    walk(root);
+    return s;
+  };
+  const inlineInSentence = (el) => {
+    // Whitespace is not a sentence: `<nav>\n  <a>one</a>\n  <a>two</a>\n</nav>` reads as two
+    // text nodes, and neither one constrains anything.
+    if (!el.parentElement) return false;
+    if (getComputedStyle(el).display !== 'inline') return false;
+    return nonTargetText(el.parentElement).trim().length > 0;
+  };
+
   // EMOJI ARE PAINTED BY THE FONT, in its own colour layers. `color` and `fill` do not
   // touch them. So measuring either against the background measures a colour that never
   // reaches the screen — and I nearly shipped exactly that: recall's convergence diagram
@@ -384,6 +409,25 @@ export function auditPage(opts) {
     // Wrapped by a real control? Then IT is the target you press, not this.
     if (!realTag && !inputTarget && el.closest('button, a, select, [role="button"]')) return;
     if (r.width < 1 || r.height < 1) return;
+    // 🔑 WCAG 2.5.8 SAYS 24px AND THEN SAYS WHEN IT DOES NOT. iris shipped the number and
+    // not the exception:
+    //
+    //   "Inline: The target is in a sentence or its size is otherwise constrained by the
+    //    line-height of non-target text."
+    //
+    // A link inside a paragraph IS that case — its height is the line box, and the author
+    // cannot reach 24 without changing the line-height of the prose around it, which is why
+    // the exception exists. Without this, iris called scout's reader `1 high` on a phone —
+    // the severity that fails a build — for the sentence "Already read: the reconnect piece.
+    // Not yet: an unread essay." Nothing was wrong with it; that is what prose IS. Any agent
+    // pointing iris at an article it had just written would have been told its own correct
+    // work was broken, on every paragraph containing a link.
+    //
+    // NON-TARGET text, precisely: a nav of links side by side is NOT a sentence — nothing
+    // constrains those, and WCAG expects them sized. So the neighbouring text only counts
+    // when it is outside every target. And `display` must really be `inline`: an
+    // inline-block chip takes a height, so the line box is not what is stopping it.
+    if (inlineInSentence(el)) return;
     const small = Math.min(r.width, r.height);
     if (small < minTap) {
       add('tap-target', mobile ? 'high' : 'low', el,
