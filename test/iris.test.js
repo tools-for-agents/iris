@@ -1096,5 +1096,10 @@ test('an inline link with no prose around it is not exempt — the exception is 
   // them, not the data. Assert the data.
   const nav = rule(run, 'tap-target').filter((v) => /nav > a$/.test(v.selector));
   assert.equal(nav.length, 3, 'the nav links are display:inline too — what they lack is non-target text');
-  assert.match(nav[0].detail, /27×18px/);
+  // NOT `/27×18px/`. That passed here and failed in CI at `30×19px`: the word "one" in system-ui is
+  // a different size on Linux than on macOS, so the exact number was an assertion about the runner's
+  // FONT, not about the rule. Assert what the rule claims — under the declared minimum — and let the
+  // platform render text however it renders text.
+  assert.match(nav[0].detail, /^\d+×\d+px — smaller than the 24px minimum touch target$/);
+  assert.ok(nav.every((v) => v.rect[3] < 24), 'each is genuinely under the minimum it is reported against');
 });
