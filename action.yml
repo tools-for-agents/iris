@@ -54,6 +54,16 @@ inputs:
       the states it has never seen are the broken ones, because they are the ones nobody
       ever looks at. Fails the job if it throws: a state you could not reach did not pass.
     default: ''
+  hover:
+    description: >-
+      A selector (or a comma-separated list) to force :hover on, after `pre`, before looking.
+      A hover state is CSS nobody has ever looked at: JS can reach a class, but :hover is the
+      browser's own, so the whole class ships unaudited. lens had `.ch-btn.brain:hover` at
+      2.72:1 for two cycles, one line under the rule that had already been fixed, because no
+      gate could render it. Fails the job if it matches nothing — a state you never reached is
+      not a state you checked — and says by NAME which selectors in a list matched nothing.
+    default: ''
+
 
 runs:
   using: composite
@@ -70,6 +80,7 @@ runs:
         IRIS_OUT: ${{ runner.temp }}/iris-${{ inputs.name }}
         IRIS_PRE: ${{ inputs.pre }}
         IRIS_BOOT: ${{ inputs.boot }}
+        IRIS_HOVER: ${{ inputs.hover }}
       run: |
         # The design system lives in ONE file (iris/tokens.json), and the action is
         # already a checkout of iris — so every repo can grade against the kit's system
@@ -101,10 +112,11 @@ runs:
         # The environment is the only safe channel: values go in as data, never as source.
         PRE=(); [ -n "$IRIS_PRE" ] && PRE=(--pre "$IRIS_PRE")
         BOOT=(); [ -n "$IRIS_BOOT" ] && BOOT=(--boot "$IRIS_BOOT")
+        HOVER=(); [ -n "$IRIS_HOVER" ] && HOVER=(--hover "$IRIS_HOVER")
 
         node "${{ github.action_path }}/src/cli.js" look "${{ inputs.url }}" \
           --viewports "${{ inputs.viewports }}" --themes "${{ inputs.themes }}" \
-          "${TOK[@]}" "${STRICT[@]}" "${PRE[@]}" "${BOOT[@]}" | tee "$RUNNER_TEMP/iris.txt"
+          "${TOK[@]}" "${STRICT[@]}" "${PRE[@]}" "${BOOT[@]}" "${HOVER[@]}" | tee "$RUNNER_TEMP/iris.txt"
         code=${PIPESTATUS[0]}
         # The report is the useful artefact, so put it in the job summary where a
         # human will actually read it — not buried in a fold of the log.
