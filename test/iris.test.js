@@ -1203,6 +1203,70 @@ test('the eye does not grade a page on its way in — the ink that is still arri
   assert.equal(run.summary.passed, true);
 });
 
+// 🔑 THE EYE'S OWN SHUTTER STARTED THE MOVEMENT IT GRADED.
+//
+// Forcing :hover fires the page's `transition`, and the audit read the page while it ran. An
+// element mid-transition measures a hair off, so a control that is EXACTLY 24.000px tall came
+// back as "24×24px — smaller than the 24px minimum touch target": a sentence that refutes
+// itself, at `high`, failing builds about a button that is fine. It flaked ~1 run in 3 for a day
+// and survived six wrong theories (float error, the panel's fade, an SSE re-render, DPR...)
+// before four buttons on a blank page reproduced it: with the transition 4 runs in 14, with
+// `transition:none` and nothing else changed, 0 in 10.
+//
+// This test asserts the MECHANISM, not the flake. An outcome test could not be honest here — the
+// dip is a subpixel artifact of compositing, so it happens on SOME frames and no fixture can make
+// it happen on all of them (a .35s transition still only fired 1 run in 5). What IS deterministic
+// is the thing that caused it: forcing the state starts a transition, and settleTransitions()
+// ends it. Pin both halves — that a transition really is started (or this test proves nothing
+// and would pass on a page with no transitions at all), and that it really is over afterwards.
+test('forcing :hover starts a transition, and iris waits for it before measuring', needsChrome, async () => {
+  const { open } = await import('../src/browser.js');
+  const s = await open();
+  try {
+    await s.page.theme('dark');
+    await s.page.viewport({ width: 390, height: 844, dpr: 2, mobile: true });
+    await s.page.goto(iris.toUrl(fixture('exactly24.html')));
+
+    // The premise: these controls are exactly the minimum, so any wobble at all reports a defect.
+    const heights = await s.page.evaluate(() => [...document.querySelectorAll('.chip')]
+      .map((c) => +c.getBoundingClientRect().height.toFixed(3)));
+    assert.deepEqual(heights, [24, 24, 24, 24], `the fixture must sit exactly ON the 24px minimum, got ${heights}`);
+
+    const landed = await s.page.forceStates(['.chip'], ['hover']);   // → [[selector, visibleCount]]
+    assert.equal(landed[0][1], 4, `the hover must land on all four chips, got ${JSON.stringify(landed)}`);
+
+    // The half that makes this test mean something: the shutter DID start something.
+    const started = await s.page.evaluate(() => document.getAnimations()
+      .filter((a) => a.constructor.name === 'CSSTransition').length);
+    assert.ok(started > 0, 'forcing :hover must start a transition here — otherwise this test guards nothing');
+
+    // And the half that is the fix.
+    await s.page.settleTransitions();
+    const running = await s.page.evaluate(() => document.getAnimations()
+      .filter((a) => a.constructor.name === 'CSSTransition').length);
+    assert.equal(running, 0, 'the eye must not measure while the movement it caused is still running');
+
+    // Settled, the page is what it always was: four buttons that are exactly big enough.
+    const after = await s.page.evaluate(() => [...document.querySelectorAll('.chip')]
+      .map((c) => +c.getBoundingClientRect().height.toFixed(3)));
+    assert.deepEqual(after, [24, 24, 24, 24], `settled, they are exactly 24 again, got ${after}`);
+  } finally { await s.close(); }
+});
+
+// And the cap is the belt: a page whose transition never settles must not hang the eye.
+test('settleTransitions gives up rather than letting a page hold the shutter open', needsChrome, async () => {
+  const { open } = await import('../src/browser.js');
+  const s = await open();
+  try {
+    await s.page.goto('data:text/html,<style>div{width:10px;height:10px;background:red;transition:width 60s linear}</style><div id=d></div>');
+    await s.page.evaluate(() => { document.getElementById('d').style.width = '900px'; });
+    const t0 = Date.now();
+    await s.page.settleTransitions(300);
+    const ms = Date.now() - t0;
+    assert.ok(ms < 3000, `the cap must fire long before the 60s transition ends, waited ${ms}ms`);
+  } finally { await s.close(); }
+});
+
 // The page says what it means under reduced motion, and iris takes it at its word — that is
 // the whole basis for reading the settled frame rather than a random one. So it must really
 // be asking, not accidentally winning a 30-second race.

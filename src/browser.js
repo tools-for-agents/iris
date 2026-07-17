@@ -301,6 +301,36 @@ class Page {
   // It invalidated an entire kit-wide sweep. Six repos came back "clean" having rendered one
   // state each; anvil's 4.42:1 was on the page the whole time, in the list, and iris said
   // nothing broken. Ask the document ONCE, then force everything against that root.
+  // 🔑 FORCING A STATE STARTS THE TRANSITION THAT THE NEXT MEASUREMENT WILL CATCH MID-FLIGHT.
+  //
+  // The eye causing the movement it then grades. `:hover { transform: translateY(-1px) }` with
+  // `transition: transform .08s` is an ordinary, correct thing to write; the instant forceStates
+  // lands, that transition starts, and the screenshot and the audit were being taken during it.
+  // An element mid-transition measures a hair off — and a control that is exactly 24.000px tall,
+  // against a 24px minimum, reports "24×24px — smaller than the 24px minimum touch target". A
+  // sentence that refutes itself, at `high`, failing a build, about a button that is fine. It cost
+  // a day. Reproduced in the end with four buttons and no page: with the transition, 4 runs in 14;
+  // with `transition:none` and nothing else changed, 0 in 10.
+  //
+  // TRANSITIONS ONLY, and briefly. The rule above stands — a spinner, a pulse and a drifting
+  // nebula never end, so waiting on ANIMATIONS is not available, which is why iris renders with
+  // prefers-reduced-motion instead. A transition is the opposite: finite, short, and OURS. The cap
+  // is the belt — no page can hang the eye — and the rAF makes sure the settled frame is the one
+  // that gets painted.
+  //
+  // (prefers-reduced-motion does not save us: it only stops what the PAGE agrees to stop, and a
+  // transition it never mentions keeps running. Nor could a `--pre` wait: states are forced AFTER
+  // pre, so the transition does not exist yet when pre runs. It has to be waited for here, by the
+  // thing that started it.)
+  async settleTransitions(capMs = 400) {
+    return this.evaluate((cap) => new Promise((done) => {
+      const running = document.getAnimations().filter((a) => a.constructor.name === 'CSSTransition');
+      const settled = Promise.all(running.map((a) => a.finished.catch(() => {})));
+      Promise.race([settled, new Promise((r) => setTimeout(r, cap))])
+        .then(() => requestAnimationFrame(() => done(running.length)));
+    }), capMs);
+  }
+
   async forceStates(selectors, states = ['hover']) {
     await this.send('DOM.enable');
     // 🔑 AND THE OBSERVER MUST NOT REPORT ITS OWN FOOTPRINT AS THE PAGE'S DEFECT.

@@ -1,0 +1,31 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>exactly 24</title>
+<style>
+  body { margin: 0; padding: 40px; font: 16px/1.5 system-ui, sans-serif; background: #0f131d; color: #e6ebf5; }
+  /* agent-hq's .gp-chip, reduced: 6px+6px padding + 12px/normal line box + 1px borders = exactly 24.000px,
+     which is exactly the WCAG 2.5.8 minimum. `small < minTap` should be FALSE. It fired ~1 run in 3. */
+  .chip {
+    display: inline-flex; align-items: center; max-width: 100%;
+    background: #1a2030; border: 1px solid #232b3d; color: #e6ebf5;
+    border-radius: 8px; padding: 4px 8px; font-size: 12px; cursor: pointer; text-align: left;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    transition: border-color .12s, transform .08s;
+  }
+  .chip:hover { transform: translateY(-1px); }
+  .col { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+</style>
+<h1>A control that is exactly 24px tall</h1>
+<div class="col">
+  <button class="chip">Security posture</button>
+  <button class="chip">Zero-dependency doctrine</button>
+  <button class="chip">Retrieval on a token budget</button>
+  <button class="chip">Knowledge graph</button>
+</div>
+<script>
+  // Report the truth next to the claim, so a failing run can be read against a measurement.
+  addEventListener('load', () => {
+    const h = [...document.querySelectorAll('.chip')].map((c) => c.getBoundingClientRect().height);
+    document.title = 'heights ' + JSON.stringify(h);
+  });
+</script>

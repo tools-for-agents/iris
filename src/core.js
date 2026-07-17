@@ -264,6 +264,10 @@ export async function look(target, opts = {}) {
           }
           if (!hit) throw new Error(`--hover ${opts.hover} matched NOTHING, so the hover state was never `
             + `reached and everything below would be about the page at rest`);
+          // Forcing :hover STARTS the page's transitions — and the screenshot and the audit below
+          // were being taken while they ran, so the eye graded movement it had caused itself. See
+          // settleTransitions() in browser.js for what that cost.
+          await session.page.settleTransitions();
         }
         const png = await session.page.screenshot({ fullPage: !!opts.full });
         const file = `${vp}-${theme}.png`;
