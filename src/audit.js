@@ -478,10 +478,29 @@ export function auditPage(opts) {
     // when it is outside every target. And `display` must really be `inline`: an
     // inline-block chip takes a height, so the line box is not what is stopping it.
     if (inlineInSentence(el)) return;
+    // 🔑 COMPARE THE NUMBER YOU PRINT, OR THE SENTENCE CAN REFUTE ITSELF.
+    //
+    // This compared the raw measurement and printed a rounded one, so a control measuring
+    // 23.9996px reported "24×24px — smaller than the 24px minimum touch target". Twenty-four is
+    // not smaller than twenty-four. I read that sentence, concluded the tool was broken, and
+    // very nearly dismissed a real finding — the reader cannot tell a rounding artefact from a
+    // bug when the message contradicts itself, so they stop believing the rule.
+    //
+    // Rounding the comparison fixes both halves at once. A subpixel is not a design defect: a
+    // control drawn at 24px that measures 23.9996 because something composited it IS 24px, and
+    // no designer chose that last ten-thousandth. Anything that now fires is at least half a
+    // pixel under, which is a real decision someone made — and prints as such, with a decimal
+    // where there is one, so the sentence is always true.
+    //
+    // (This is a belt, not the fix: the reason a settled 24px chip ever measured 23.9996 was
+    // iris photographing a transition its own --hover started. That is fixed in core.js. Both
+    // belong: one stops the eye from causing the wobble, this one stops a wobble it did not
+    // cause from being reported as a defect that refutes itself.)
     const small = Math.min(r.width, r.height);
-    if (small < minTap) {
+    const px = (v) => (Math.abs(v - Math.round(v)) < 0.05 ? String(Math.round(v)) : v.toFixed(1));
+    if (Math.round(small) < minTap) {
       add('tap-target', mobile ? 'high' : 'low', el,
-        `${Math.round(r.width)}×${Math.round(r.height)}px — smaller than the ${minTap}px minimum touch target`,
+        `${px(r.width)}×${px(r.height)}px — smaller than the ${minTap}px minimum touch target`,
         { rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] });
     }
   }
