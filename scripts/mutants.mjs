@@ -164,8 +164,28 @@ const run = () => {
   // NOT a test failure, it is a suite that never got to answer. Say which one it was.
   // A SKIPPED test cannot kill a canary — it did not run. So the skip count is not trivia here:
   // it is the difference between "nothing guards this line" and "the guard never got to look".
-  const skipped = +(`${r.stdout || ''}${r.stderr || ''}`.match(/^\s*(?:ℹ|#)\s*skipped\s+(\d+)/m)?.[1] || 0);
-  return { failed: r.status !== 0, timedOut: r.signal === 'SIGTERM' || r.error?.code === 'ETIMEDOUT', skipped };
+  const out = `${r.stdout || ''}${r.stderr || ''}`;
+  const skipped = +(out.match(/^\s*(?:ℹ|#)\s*skipped\s+(\d+)/m)?.[1] || 0);
+  return { failed: r.status !== 0, timedOut: r.signal === 'SIGTERM' || r.error?.code === 'ETIMEDOUT', skipped, out };
+};
+
+// 🔑 THE SUITE ALREADY TOLD US WHICH TEST FAILED, AND THIS SCRIPT THREW IT AWAY.
+//
+// `run()` had the whole of stdout+stderr in its hand and returned a boolean. So a red baseline
+// printed "THE SUITE IS ALREADY RED" and nothing else — a sentence this very file complains about
+// TWICE in its own comments ("which names neither the file nor the line", above and below), because
+// it wasted somebody's time twice. The complaint was written down; the message never changed.
+//
+// It named neither the file nor the line for the oldest reason: nobody kept them. Keep them.
+const failures = (out) => {
+  // node --test prints a "✖ failing tests:" section at the end with every failure and its
+  // assertion. That IS the answer; hand it over verbatim rather than paraphrasing a summary.
+  const i = out.indexOf('✖ failing tests:');
+  if (i !== -1) return out.slice(i).trimEnd();
+  // No section (a crash before the runner started, an OOM, a bad import). Then the tail is all
+  // there is, and it is still infinitely more than a boolean.
+  const tail = out.trimEnd().split('\n').slice(-40).join('\n');
+  return tail || '(the suite produced no output at all — that is itself the finding)';
 };
 
 // 🔑 AND IT MUST NOT RUN TWICE AT ONCE. This tool EDITS YOUR SOURCE IN PLACE, so two concurrent runs
@@ -207,7 +227,19 @@ if (base.timedOut) {
     + 'Raise TIMEOUT_MS or speed up the suite; do not read a slow suite as a broken one.');
   process.exit(1);
 }
-if (base.failed) { console.error('THE SUITE IS ALREADY RED. Nothing can be proven from here.'); process.exit(1); }
+if (base.failed) {
+  console.error('THE SUITE IS ALREADY RED, before a single mutation was planted. Nothing can be proven from here:\n'
+    + 'every canary would "die" for free and this job would pass by accident. This is NOT a mutants finding —\n'
+    + 'it is the suite, and it is the same red you get from `npm test`.\n');
+  console.error(failures(base.out));
+  console.error('\n▶ Two things this is, in order of likelihood:\n'
+    + '  1. A LEFTOVER MUTATION. This tool edits source in place. A run killed mid-flight (Ctrl-C, a cancelled\n'
+    + '     CI job, an OOM) leaves a deliberately subtle one-character sabotage in your tree — check `git diff`\n'
+    + '     before you debug the test. It has happened: a killed run left `raw && !isHtml` in scout\'s core.js.\n'
+    + '  2. A GENUINELY BROKEN OR FLAKY TEST. If `git diff` is clean and the test job is green on the same\n'
+    + '     commit, you have a nondeterministic test — and it will fail this gate at random forever.');
+  process.exit(1);
+}
 // 🔑 A canary cannot be killed by a test that DID NOT RUN. If the baseline skipped tests, then any
 // canary those tests guard will "survive" — and it will look exactly like a coverage hole, sending
 // you to write a test that already exists instead of to the one-line fix (start Docker / install
