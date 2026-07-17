@@ -92,6 +92,71 @@ jobs:
           name: iris-web
           tokens: kit      # the kit's ONE design system — iris/tokens.json, not a copy
           strict: true     # drift is a regression now; a gate is what keeps it from creeping back
+          # IRIS WAS THE LAST REPO IN THE KIT WITH NO --hover, AND IRIS IS WHERE --hover COMES FROM.
+          # Every consumer got hover-gated one by one — cortex, anvil, recall and lens each had a
+          # real bug in a state nothing had ever rendered — while the tool that hands out the flag
+          # never pointed it at itself. "lens is the last repo not using it" (C168) counted the
+          # consumers and forgot the tool. The gate was standing in its own doorway.
+          hover: '.run,.go,.xtk a'
+          # THE RULE THAT CAUGHT THIS CANNOT DEFEND THE FIX. `unreachable-control` is `medium`,
+          # and only `high` fails a build — so iris found four unreachable rows in its OWN reader
+          # and exited 0. Promoting it to `high` reddens every iris@main consumer, including one
+          # (the ghio landing page) that cannot be audited from here — that trade is still not
+          # mine to make today. So pin THIS fix where it cannot be argued with: `pre` throws, and
+          # a throw is exit 2 no matter what severity thinks.
+          pre: |
+            const rows = [...document.querySelectorAll('.run:not(.torn)')];
+            if (rows.length < 2) throw new Error('not enough runs seeded to test navigation: ' + rows.length);
+            const notButtons = rows.filter((r) => r.tagName !== 'BUTTON');
+            if (notButtons.length) throw new Error(notButtons.length + ' run rows regressed to <' + notButtons[0].tagName + '> — the reader is mouse-only again');
+            const second = rows[1];
+            second.focus();
+            if (document.activeElement !== second) throw new Error('a run row cannot take keyboard focus');
+            second.click();
+            await new Promise((r) => setTimeout(r, 300));
+            if (!second.classList.contains('on')) throw new Error('activating a run row did not open it');
+            if (second.getAttribute('aria-current') !== 'true') throw new Error('the open run does not announce aria-current');
+            if (rows.some((r) => r !== second && r.hasAttribute('aria-current'))) throw new Error('more than one run claims to be current');
+
+  # THE READER'S OWN DOOR: THE LIGHTBOX.
+  #
+  # `look` renders the contact sheet, and every shot on it opens a full-screen viewer that
+  # `display:none` keeps off the page until someone clicks. No gate had ever clicked. That is
+  # the shape this tool exists to find, and it was hiding in this tool: cortex's panels, scout's
+  # TOC, anvil's detail, recall's briefing, agent-hq's modal — each one held a real bug behind a
+  # button nothing pressed.
+  #
+  # `pre` is loud when it fails ("--pre failed, so the state was never reached and NOTHING was
+  # audited", exit 2), so this job cannot quietly go back to auditing the closed page — the way
+  # a --hover selector used to count as "landed" when it merely matched (C170).
+  look-lightbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Serve it with a run on it, so there is a shot to open
+        run: |
+          node src/cli.js look test/fixtures/clean.html --viewports desktop --themes dark
+          node src/cli.js serve &
+          for i in $(seq 30); do curl -sf http://localhost:7990/api/stats >/dev/null && break; sleep 1; done
+          n=$(curl -sf http://localhost:7990/api/stats | node -pe "JSON.parse(require('fs').readFileSync(0)).runs ?? 0")
+          test "$n" -gt 0 || { echo "::error::runs=0 — there would be no shot to click"; exit 1; }
+      - uses: ./
+        with:
+          url: http://localhost:7990/
+          viewports: phone,tablet,desktop
+          name: iris-lightbox
+          tokens: kit
+          strict: true
+          # Open it, and refuse to look at anything else if it did not open.
+          pre: |
+            const img = document.querySelector('.shot img');
+            if (!img) throw new Error('no shot on the page — nothing to open');
+            img.click();
+            await new Promise(r => setTimeout(r, 400));
+            if (!document.querySelector('#lb.show')) throw new Error('the lightbox did not open');
 
   # THE EMPTY STATE IS THE ONE STATE EVERY USER SEES FIRST.
   #

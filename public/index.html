@@ -69,9 +69,19 @@
     .sheet { grid-template-columns:1fr; }
   }
   .side-h { font-family:var(--mono); font-size:12px; letter-spacing:1.2px; text-transform:uppercase; color:var(--faint); margin: 0 0 12px; }
-  .run { display:flex; gap: 8px; align-items:flex-start; padding: 8px 12px; border-radius:8px; cursor:pointer; border:1px solid transparent; margin-bottom: 4px; }
+  /* Every run row is a real <button>: iris's own unreachable-control rule caught these as
+     divs — cursor:pointer, no tabindex, so the reader's ONLY navigation was mouse-only.
+     A <button> brings Tab, Enter and Space with it, and announces itself, for free.
+     🔑 A BUTTON CARRIES A UA STYLESHEET: font does NOT inherit, text centres, and Chrome
+     supplies `1px 6px` of padding to anything that does not say otherwise (that is exactly
+     how agent-hq's three close buttons landed 6px off the grid). Say all of it out loud. */
+  .run { display:flex; gap: 8px; align-items:flex-start; padding: 8px 12px; border-radius:8px; cursor:pointer; border:1px solid transparent; margin-bottom: 4px;
+         width:100%; text-align:left; font:inherit; color:inherit; background:transparent; -webkit-appearance:none; appearance:none; }
   .run:hover { background:var(--panel-2); }
   .run.on { background:var(--panel-2); border-color:var(--line-2); }
+  .run:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  /* An unreadable record is a status line, not a destination. */
+  .run.torn { cursor:default; }
   .run .v { flex:none; font-size:14px; line-height:1.4; }
   .run .v.ok { color:var(--ok); } .run .v.bad { color:var(--bad); } .run .v.warn { color:var(--warn); }
   .run .t { min-width:0; }
@@ -341,7 +351,10 @@ async function loadRuns(select) {
     // A run whose record iris cannot READ is not a run that FAILED. Rendered as a normal row it would
     // show "✗ undefined · 0h 0m" — a wrong answer wearing the costume of a real one. Say what it is.
     if (r.unreadable) {
-      return `<div class="run torn" data-id="${esc(r.id)}">
+      // Not a control: there is nothing to show. It kept `data-id` and .run's cursor:pointer,
+      // so it invited a click and answered with an empty panel. A row that cannot go anywhere
+      // must not look like it can.
+      return `<div class="run torn">
         <span class="v warn">⚠</span>
         <div class="t">
           <div class="nm">${esc(r.id)}</div>
@@ -350,13 +363,14 @@ async function loadRuns(select) {
       </div>`;
     }
     const ok = r.summary?.passed;
-    return `<div class="run ${CUR && CUR.id === r.id ? 'on' : ''}" data-id="${esc(r.id)}">
+    const on = CUR && CUR.id === r.id;
+    return `<button type="button" class="run ${on ? 'on' : ''}" data-id="${esc(r.id)}" ${on ? 'aria-current="true"' : ''}>
       <span class="v ${ok ? 'ok' : 'bad'}">${ok ? '✓' : '✗'}</span>
       <div class="t">
         <div class="nm">${esc(r.target)}</div>
         <div class="sub">${r.kind === 'play' ? '🎮 play' : '👁 look'} · ${ok ? 'clean' : `${r.summary?.high || 0}h ${r.summary?.medium || 0}m`}</div>
       </div>
-    </div>`;
+    </button>`;
   }).join('') : `<div style="color:var(--faint);font-size:12px">nothing yet</div>`;
   if (select) show(select);
 }
@@ -393,7 +407,13 @@ $('#t').addEventListener('keydown', (e) => { if (e.key === 'Enter') run('look');
 // ── the contact sheet ────────────────────────────────────────────────────────
 function show(r) {
   CUR = r;
-  document.querySelectorAll('.run').forEach((el) => el.classList.toggle('on', el.dataset.id === r.id));
+  document.querySelectorAll('.run').forEach((el) => {
+    const on = el.dataset.id === r.id;
+    el.classList.toggle('on', on);
+    // The highlight and the announcement are the same fact. Toggling only the class would
+    // tell a sighted user which run is open and a screen reader nothing at all.
+    if (on) el.setAttribute('aria-current', 'true'); else el.removeAttribute('aria-current');
+  });
   const s = r.summary || {};
   const shots = r.kind === 'play'
     ? (r.frames || []).map((f, i) => ({ file: f.file, label: `frame ${i}`, theme: '', n: null }))
