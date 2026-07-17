@@ -224,6 +224,28 @@ export function auditPage(opts) {
   // Does this element hold text of its OWN (not just its children's)?
   const ownText = (el) => [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 1);
 
+  // Was it already hidden by a container BEFORE it ever reached the edge of the screen?
+  //
+  // 🔑 ONLY A CLIP THAT HAPPENS *INSIDE* THE VIEWPORT ANSWERS THAT. An app shell says
+  // body{height:100vh;overflow:hidden} — that clip sits exactly ON the viewport edge, and
+  // measuring "is this past the viewport" against it erases the very evidence: a button lost
+  // 60px off the side would clip to the body box and read as perfectly on-screen. So a clip
+  // at or beyond the edge is the viewport's, not a container's, and it is ignored here.
+  //
+  // A clip that lands well inside the screen is a container hiding its own overflow — a card,
+  // a cell, an ellipsis — and an element behind it is not "off the edge of the page", it is
+  // tucked inside something that meant to tuck it.
+  const localClipX = (el, W) => {
+    let L = -Infinity, R = Infinity;
+    for (let n = el.parentElement; n && n.nodeType === 1; n = n.parentElement) {
+      if (getComputedStyle(n).overflowX === 'visible') continue;      // clips nothing sideways
+      const c = n.getBoundingClientRect();
+      if (c.right < W - 1) R = Math.min(R, c.right);                  // a real, local right clip
+      if (c.left > 1) L = Math.max(L, c.left);                        // a real, local left clip
+    }
+    return { left: L, right: R };
+  };
+
   // Is it inside something that scrolls sideways on purpose? Then it is not clipped;
   // it is off-screen and reachable, which is what a horizontal scroller IS.
   function inScroller(el) {
@@ -259,8 +281,20 @@ export function auditPage(opts) {
     // carousel, a wide table. That content is off-screen and REACHABLE, which is
     // the whole design. Flagging it made a correctly-built horizontal scroller look
     // like five separate bugs, and taught the reader to skim past the real one.
-    if (r.right > W + 1 && r.width < W * 1.5 && r.left < W && !inScroller(el)) {
-      const clip = Math.round(r.right - W);
+    //
+    // 🔑 AND UNLESS A CONTAINER ALREADY HID IT. "An element is only where you can actually
+    // see it" is a lesson this file already learned — and then applied to the overlap rule
+    // alone, 200 lines down, while this rule went on measuring raw getBoundingClientRect()
+    // against the viewport. So `title<span>· host</span>` inside the commonest truncation in
+    // web UI — flex row, overflow:hidden, text-overflow:ellipsis — reported the host as "68px
+    // past the right edge" when the ellipsis had eaten it and not one pixel of it was ever
+    // painted. It cost scout a red build and me an hour hunting a layout bug that did not
+    // exist. A [high] that fires on an ellipsis is a [high] nobody believes the next time it
+    // is right.
+    const lc = localClipX(el, W);
+    const vRight = Math.min(r.right, lc.right), vLeft = Math.max(r.left, lc.left);
+    if (vRight - vLeft > 1 && vRight > W + 1 && r.width < W * 1.5 && vLeft < W && !inScroller(el)) {
+      const clip = Math.round(vRight - W);
       if (clip > 2) add('clipped', 'high', el, `extends ${clip}px past the right edge of the ${W}px viewport`,
         { rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] });
     }
@@ -272,8 +306,9 @@ export function auditPage(opts) {
     // NOT grow scrollWidth, so the page-overflow check never sees it either. `r.right > 0`
     // (mirror of the right case's `r.left < W`) keeps the far-off-screen visually-hidden
     // idiom (`left:-9999px`) from tripping it — that ends left of 0, so it is not flagged.
-    if (r.left < -1 && r.width < W * 1.5 && r.right > 0 && !inScroller(el)) {
-      const clip = Math.round(-r.left);
+    // Hidden by a container here too: the mirror of the ellipsis case is an RTL one.
+    if (vRight - vLeft > 1 && vLeft < -1 && r.width < W * 1.5 && vRight > 0 && !inScroller(el)) {
+      const clip = Math.round(-vLeft);
       if (clip > 2) add('clipped', 'high', el, `extends ${clip}px past the left edge of the ${W}px viewport`,
         { rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] });
     }
@@ -474,6 +509,10 @@ export function auditPage(opts) {
   //
   // So intersect every box with the clip region of its ancestors first. A box that
   // survives to nothing is not a box.
+  //
+  // (The `clipped` rule above needs this same idea and CANNOT use this helper: a clip that
+  // lands ON the viewport edge — every app shell's body{overflow:hidden} — must not count
+  // there, or a control genuinely lost off the side reads as on-screen. See localClipX.)
   const clipOf = (el) => {
     let L = -Infinity, T0 = -Infinity, R = Infinity, B = Infinity;
     for (let n = el.parentElement; n && n.nodeType === 1; n = n.parentElement) {

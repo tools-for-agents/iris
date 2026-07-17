@@ -1,0 +1,48 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>tucked away, or lost off the side?</title>
+<!--
+  Two elements whose getBoundingClientRect() both end well past the right edge of the
+  viewport. One of them is a bug. The other is an ellipsis doing its job.
+
+  .host  — inside a flex row whose .title has overflow:hidden + text-overflow:ellipsis.
+           The row is 300px and sits well inside the screen. The browser paints "A very
+           long title…" and NEVER paints .host at all. Nothing is off the edge of the
+           page: it is tucked inside something that meant to tuck it. Reporting this is
+           how you teach a reader to skim past the real one below.
+
+  .lost  — inside a shell that says overflow:hidden the way every app shell in this kit
+           does. It really is off the side of the screen, really unreachable, and the
+           shell's clip sits exactly ON the viewport edge — so a check that clips by
+           ancestors before measuring would erase the evidence and call it fine.
+-->
+<style>
+  html, body { margin: 0; background: #ffffff; color: #111111;
+    font-family: system-ui, sans-serif; font-size: 16px; }
+  /* the app shell: clips at exactly the viewport edge, like every shell in this kit */
+  .shell { height: 100vh; overflow: hidden; position: relative; }
+
+  /* the ellipsis: a LOCAL clip. The row ends at x=360, 30px inside a 390px phone, so the
+     clip is unambiguously a container's and not the viewport's. */
+  .row { display: flex; width: 340px; margin: 20px; }
+  .title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; font-size: 16px; line-height: 24px; }
+  /* Pin the geometry instead of trusting a font to measure the same everywhere: .host starts
+     at 20+290=310 — INSIDE the screen, which is what makes it the real shape. It runs to ~400,
+     past the 390 edge, so the raw rect trips the rule; the row hides it from x=360 on, so the
+     eye should not. Guessing at title length gave a .host that started past 390, where the
+     rule's own `left < W` guard already excluded it — a fixture that reproduced nothing. */
+  .pad { display: inline-block; width: 290px; }
+  .host { color: #555555; }
+
+  /* the bug: a control shoved off the right edge, inside the shell */
+  .lost { position: absolute; top: 200px; left: 96%; width: 220px; padding: 12px;
+    background: #333333; color: #ffffff; border: 0; font-size: 16px; line-height: 24px; }
+</style>
+<div class="shell">
+  <div class="row">
+    <span class="title"><span class="pad">A very long title the ellipsis eats</span><span class="host"> · example.com</span></span>
+  </div>
+  <button class="lost">Save changes</button>
+</div>

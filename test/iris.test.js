@@ -113,6 +113,32 @@ test('a control clipped off the LEFT edge is caught — but the visually-hidden 
     'the left:-9999px skip-link is a11y, not a clipping bug — it ends left of the viewport, so it is left alone');
 });
 
+// TUCKED AWAY IS NOT LOST OFF THE SIDE, AND THE DIFFERENCE IS WHERE THE CLIP HAPPENS.
+//
+// This rule measured getBoundingClientRect() straight against the viewport, and rect knows
+// nothing about clipping. So `title<span>· host</span>` — a flex row with overflow:hidden and
+// text-overflow:ellipsis, the commonest truncation in web UI — reported the host as "68px past
+// the right edge" while the ellipsis had eaten it and the browser never painted one pixel of it.
+// It cost scout a red build over a layout bug that did not exist. This file already knew better:
+// "an element is only where you can actually see it", learned once and wired into the overlap
+// rule alone, 200 lines below the rule that needed it just as much.
+//
+// The fix is one line from being the OPPOSITE bug. Clip by every ancestor and an app shell's
+// body{height:100vh;overflow:hidden} — which every shell in this kit declares — clips exactly ON
+// the viewport edge, so a button genuinely lost off the side reads as perfectly on-screen and the
+// rule dies silently. Neither existing fixture has a shell, so the whole suite would have gone
+// green over it. Only a clip that lands INSIDE the screen means a container hid its own overflow.
+//
+// Both live in one fixture on purpose: they are the same geometry, and only the container differs.
+test('an ellipsis is not a clipping bug — but a control lost off the side of an app shell still is', needsChrome, async () => {
+  const run = await iris.look(fixture('tucked.html'), { viewports: 'phone', themes: 'light', tokens: false });
+  const clipped = rule(run, 'clipped');
+  assert.ok(!clipped.some((v) => /host/.test(v.selector)),
+    `.host is eaten by an ellipsis 90px inside the screen and never painted — it is tucked, not clipped; got ${JSON.stringify(clipped.map((v) => v.selector))}`);
+  assert.ok(clipped.some((v) => /lost/.test(v.selector) && /right edge/.test(v.detail || v.text)),
+    `.lost really is off the right edge, and the shell's overflow:hidden sits ON the viewport edge — clipping by it would erase the evidence; got ${JSON.stringify(clipped.map((v) => v.selector))}`);
+});
+
 // The headline case. A dead game renders one perfect frame and then nothing —
 // it is FLAWLESS in a screenshot. Only watching it move tells you the truth.
 test('a game that renders one perfect frame and then dies is caught — a screenshot never would', needsChrome, async () => {
