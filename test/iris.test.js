@@ -53,13 +53,21 @@ test('the eye catches every defect on a page written without looking', needsChro
 test('a control you can click but cannot Tab to is flagged; a reachable one is not', needsChrome, async () => {
   const run = await iris.look(fixture('unreachable.html'), { viewports: 'desktop', themes: 'light' });
   const uc = rule(run, 'unreachable-control');
-  assert.equal(uc.length, 3, `expected exactly 3 unreachable controls, got ${uc.length}: ${uc.map((v) => v.selector).join(', ')}`);
+  assert.equal(uc.length, 4, `expected exactly 4 unreachable controls, got ${uc.length}: ${uc.map((v) => v.selector).join(', ')}`);
   assert.ok(uc.some((v) => /Onclick div/.test(v.text)), 'an onclick <div> with no tabindex');
   assert.ok(uc.some((v) => /#jslink/.test(v.selector)), 'a cursor:pointer span made clickable by addEventListener (the .wl case)');
   assert.ok(uc.some((v) => /role=button, no tabindex/.test(v.text)), 'a role=button div with no tabindex — announced, but unfocusable');
-  // Every reachable/native/label control is fine — only 3 fired, and none of them is one of these.
+  // The exemption below is for a DECLARED composite. A role=option floating on its own is not one.
+  assert.ok(uc.some((v) => /#orphan/.test(v.selector)), 'a role=option with no listbox around it is still a lone div');
+  // Every reachable/native/label control is fine — only 4 fired, and none of them is one of these.
   assert.ok(!uc.some((v) => /\(fine\)|Clickable label/.test(v.text)),
     'a native <button>/<a>, a role=button+tabindex, a clickable+tabindex div, and a <label> are all reachable — never flagged');
+  // 🔑 THE COMBOBOX. ARIA says an option is driven by its listbox and must NOT be tabbable, so
+  // this rule was demanding the exact opposite of the pattern — it called all 8 rows of cortex's
+  // search unreachable while `/` + ↑/↓ + Enter drove them fine, and once it gates at `high` it
+  // would have failed the build for being correct.
+  assert.ok(!uc.some((v) => /#o1|#o2/.test(v.selector)),
+    'role=option inside a role=listbox is driven by the combobox — arrow keys, not Tab. Never flagged.');
   assert.ok(!uc.some((v) => /#slider|#check/.test(v.selector)),
     'a native <input type=range>/checkbox is keyboard-accessible with no tabindex — never flagged (recall’s budget slider was a false positive)');
 });

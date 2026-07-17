@@ -16,6 +16,22 @@
   <div class="card clickable" onclick="void 0">Onclick div (unreachable)</div>
   <span class="card clickable" id="jslink">cursor:pointer span (unreachable)</span>
   <div class="card" role="button">role=button, no tabindex (announced, unfocusable)</div>
+  <!-- A composite's child is exempt because its CONTAINER drives it. Declare the child and
+       no container, and it is just a lone div again — the exemption must not be a password. -->
+  <div class="card clickable" role="option" id="orphan">role=option with no listbox (unreachable)</div>
+</div>
+
+<!-- MUST NOT FIRE: a real combobox. This is cortex's search, reduced. Focus never leaves the
+     input; ↑/↓ move aria-activedescendant and Enter opens the active option. The options are
+     NOT tabbable, and that is the pattern working exactly as written — demanding tabindex="0"
+     here would be demanding the opposite of correct. -->
+<div class="row">
+  <input id="q" role="combobox" aria-expanded="true" aria-controls="lb" aria-activedescendant="o2"
+         aria-label="Search" value="a">
+  <div class="lb" id="lb" role="listbox" aria-label="Results">
+    <div class="card clickable" role="option" id="o1" aria-selected="false">Option one (fine)</div>
+    <div class="card clickable" role="option" id="o2" aria-selected="true">Option two, active (fine)</div>
+  </div>
 </div>
 
 <!-- MUST NOT FIRE: reachable and/or announced correctly, or native -->

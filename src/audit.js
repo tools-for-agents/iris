@@ -430,8 +430,23 @@ export function auditPage(opts) {
     // with no tabindex at all. Excluding only `inputTarget` flagged recall's budget slider (a range
     // input, which inputTarget deliberately ignores) as "unreachable" — it is not. Exclude the whole
     // family: <input>, <textarea> (and realTag already covers <a>/<button>/<select>).
+    // 🔑 A COMPOSITE WIDGET'S CHILDREN ARE NOT SUPPOSED TO BE TABBABLE, AND SAYING SO IS NOT A BUG.
+    // ARIA's own patterns: a listbox owns its options, a menu its menuitems, a tree its treeitems.
+    // Focus stays on the container — or, for a combobox, on the INPUT that controls it — and moves
+    // through the children with the ARROW keys, via aria-activedescendant or a roving tabindex.
+    // cortex's search is exactly that: `/` focuses the box, ↑/↓ move the selection, Enter opens it.
+    // Fully keyboard-operable, with not one tabindex in sight — and this rule called all 8 rows
+    // unreachable and told them to add tabindex="0" + role="button", which is the OPPOSITE of the
+    // pattern. It would have talked a correct combobox into breaking itself, and once this check
+    // gates at `high` it would fail the build for being right. Fire only where the author has NOT
+    // declared a composite: a role="option" with no listbox around it really is a lone div.
+    const OWNED_BY = { option: '[role="listbox"]', menuitem: '[role="menu"],[role="menubar"]',
+      menuitemcheckbox: '[role="menu"],[role="menubar"]', menuitemradio: '[role="menu"],[role="menubar"]',
+      treeitem: '[role="tree"]', tab: '[role="tablist"]', radio: '[role="radiogroup"]' };
+    const owner = OWNED_BY[el.getAttribute('role')];
+    const inComposite = !!(owner && el.parentElement && el.parentElement.closest(owner));
     if (!realTag && tag !== 'input' && tag !== 'textarea' && tag !== 'label' && tag !== 'summary'
-        && r.width >= 1 && r.height >= 1
+        && r.width >= 1 && r.height >= 1 && !inComposite
         && el.getAttribute('tabindex') === null && !el.isContentEditable
         && !(el.parentElement && el.parentElement.closest('button, a, select, [role="button"]'))) {
       const role = el.getAttribute('role');
