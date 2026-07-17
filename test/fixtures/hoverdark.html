@@ -21,6 +21,11 @@
 -->
 <style>
   body { margin: 0; background: #101418; color: #e6ebf5; font: 16px/1.5 system-ui, sans-serif; padding: 40px; }
+  /* display:inline-flex BEATS the hidden attribute's UA display:none, so a .btn[hidden] stays on
+     the screen. That is not a fixture quirk — it is why scout's stylesheet has to say
+     `.toc-toggle[hidden] { display:none }` out loud. Say it here too, or .tucked-away is visible
+     and this fixture reproduces nothing. */
+  .btn[hidden] { display: none; }
   .btn {
     display: inline-flex; align-items: center; min-height: 24px;
     background: #101418; border: 1px solid #2a3550; border-radius: 8px; padding: 8px 16px;
@@ -34,3 +39,10 @@
 <p>At rest this button is fine. Point at it and the label sinks into the background.</p>
 <button class="btn">🧠 → cortex</button>
 <button class="btn safe">this one is honest</button>
+<!--
+  IN THE DOM AND NOT ON THE SCREEN. Forcing :hover on this is a no-op with a receipt: it
+  matches, so the selector counts as "landed", so no blind-spot line is printed — and
+  nothing was looked at. An SPA that keeps every view mounted (agent-hq) or a control that
+  hides itself until it is useful (scout's .toc-toggle) is full of these.
+-->
+<button class="btn tucked-away" hidden>you cannot see me</button>

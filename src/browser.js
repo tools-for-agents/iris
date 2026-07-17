@@ -331,7 +331,30 @@ class Page {
       for (const nodeId of nodeIds) {
         await this.send('CSS.forcePseudoState', { nodeId, forcedPseudoClasses: states });
       }
-      landed.push([selector, nodeIds.length]);
+      // 🔑 COUNT WHAT RENDERS, NOT WHAT MATCHES.
+      //
+      // Forcing :hover on a display:none element is a no-op with a receipt: the selector reports
+      // "landed", no blind-spot line is printed, and NOTHING was looked at. It is a pass that means
+      // nothing, which is worse than a miss — a miss says so out loud.
+      //
+      // It has now lied twice in one day. scout's .toc-toggle is [hidden] on the library page and
+      // "landed" there. agent-hq is an SPA that keeps all eight views in the DOM and hides the
+      // inactive ones, so the same 15 selectors "landed" on all eight — .card on the ledger,
+      // .agent on the board. They cannot all be there, and the report said they were.
+      //
+      // The audit only ever measures visible elements, so no verdict was ever wrong because of
+      // this. What was wrong is the sentence iris prints about its own coverage, which is the one
+      // thing a reader uses to decide whether to believe the verdict.
+      landed.push([selector, await this.evaluate((sel) => {
+        try {
+          return [...document.querySelectorAll(sel)].filter((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.width < 1 || r.height < 1) return false;
+            const s = getComputedStyle(el);
+            return s.visibility !== 'hidden' && s.display !== 'none' && +s.opacity !== 0;
+          }).length;
+        } catch { return 0; }
+      }, selector)]);
     }
     return landed;
   }

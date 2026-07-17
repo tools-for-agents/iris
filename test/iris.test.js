@@ -1072,6 +1072,31 @@ test('--hover names the selectors in a list that matched NOTHING, instead of pas
     'and "nothing broken" can never be read alone off a run that never rendered what it was asked for');
 });
 
+// 🔑 AND "LANDED" MUST MEAN RENDERED, NOT MATCHED.
+//
+// The list check above counts what querySelectorAll returned. A display:none element is returned
+// by querySelectorAll and forcing :hover on it does nothing at all — so the selector reports as
+// landed, no blind-spot line is printed, and the reader is told a state was rendered that was
+// never on the screen. It is a pass that means nothing, which is worse than a miss: a miss says so.
+//
+// It lied twice in one day. scout's .toc-toggle is [hidden] on the library page and "landed" there.
+// agent-hq keeps all eight views mounted and hides the inactive ones, so the same 15 selectors
+// "landed" on all eight — .card on the ledger, .agent on the board. They cannot all be there.
+//
+// No verdict was ever wrong from this (the audit only measures visible elements). The sentence
+// iris prints about its OWN coverage was — which is the sentence a reader uses to decide whether
+// to believe the verdict.
+test('--hover counts a selector as landed only if it RENDERS — matching the DOM is not being on the screen', needsChrome, async () => {
+  const run = await iris.look(fixture('hoverdark.html'),
+    { viewports: 'desktop', themes: 'dark', hover: '.safe, .tucked-away' });
+
+  assert.ok(run.blind, '.tucked-away is [hidden]: it matches, it cannot be hovered, and iris must say so');
+  assert.deepEqual(run.blind.hover_missed, ['.tucked-away'],
+    'BY NAME — a selector that is in the DOM and not on the screen was never rendered');
+  assert.match(summary(run), /1 of 2 --hover selectors matched NOTHING/,
+    'and it is in the headline, not buried where a green tick is read instead');
+});
+
 test('--hover says nothing about blindness when every selector in the list landed', needsChrome, async () => {
   // `.safe, p` and not `.safe, .btn`: .safe IS a .btn, so listing .btn would force the 1.4:1 button
   // too and fail for the RIGHT reason at the wrong moment — this test is about the absence of a gap.
