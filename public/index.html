@@ -140,6 +140,16 @@
 
   .spin { display:inline-block; width:11px; height:11px; border:2px solid var(--line-2); border-top-color:var(--accent); border-radius:50%; animation:s .7s linear infinite; }
   @keyframes s { to { transform:rotate(360deg); } }
+  /* 🔑 THE EYE RENDERS EVERY OTHER PAGE IN THIS KIT WITH `prefers-reduced-motion: reduce`, AND NEVER
+     ANSWERED IT ITSELF. src/browser.js explains the whole design decision like this: "waiting for the
+     animations to END is not available: a spinner, a pulse, a drifting nebula never end, and this kit
+     has all three." The spinner in that sentence IS THIS ONE. It spun through every render of iris's
+     own reader, and through every render for a reader who had asked the machine to hold still.
+     Stopping it costs nothing: the ring is decoration, and the sentence beside it — "opening a browser
+     and looking at …" — is what actually says work is happening. That sentence does not move.
+     Placed AFTER the rule it overrides, on purpose: same specificity, later wins, and a reduced-motion
+     block written above its target is decoration (agent-hq shipped one that did nothing). */
+  @media (prefers-reduced-motion: reduce) { .spin { animation:none; } }
   .err { color:var(--bad); font-family:var(--mono); font-size:12px; padding: 12px 12px; border:1px solid color-mix(in srgb, var(--bad) 40%, transparent);
          border-radius:8px; background:color-mix(in srgb, var(--bad) 8%, transparent); margin-bottom: 16px; }
 </style>
