@@ -513,11 +513,16 @@ export function auditPage(opts) {
     // iris photographing a transition its own --hover started. That is fixed in core.js. Both
     // belong: one stops the eye from causing the wobble, this one stops a wobble it did not
     // cause from being reported as a defect that refutes itself.)
+    // Rounding the COMPARISON is the whole fix, and it makes the message honest for free: if
+    // Math.round(small) is under the minimum, then the rounded number printed below is under it
+    // too, and the sentence is true by construction. My first attempt also printed a decimal
+    // whenever one existed — which was unnecessary, and broke a format the report already
+    // promised (`\d+×\d+px`) the moment a width landed on 29.8 instead of 30. Font metrics differ
+    // between a Mac and a CI runner, so it passed here and failed there. One number, one rule.
     const small = Math.min(r.width, r.height);
-    const px = (v) => (Math.abs(v - Math.round(v)) < 0.05 ? String(Math.round(v)) : v.toFixed(1));
     if (Math.round(small) < minTap) {
       add('tap-target', mobile ? 'high' : 'low', el,
-        `${px(r.width)}×${px(r.height)}px — smaller than the ${minTap}px minimum touch target`,
+        `${Math.round(r.width)}×${Math.round(r.height)}px — smaller than the ${minTap}px minimum touch target`,
         { rect: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)] });
     }
   }
