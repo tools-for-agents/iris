@@ -54,8 +54,28 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      # 🔑 THIS JOB RUNS THE SAME SUITE AS `test`, SO IT MUST RUN IT THE SAME WAY.
+      #
+      # It did not. `test` installs a known Chrome and pins it with IRIS_CHROME; this job
+      # installed nothing and let iris go looking for whatever browser happened to be baked
+      # into the runner image. Same commit, same code, two different machines — and that is
+      # exactly what it looked like: `mutants` red while `test` was green, on a commit that
+      # added one markdown file. Twice in the last fifteen runs, ~13%, always the same
+      # useless sentence ("THE SUITE IS ALREADY RED"), which is what sent me looking here.
+      #
+      # The irony is on the nose: iris is the tool that drives a browser, and iris is the one
+      # repo in the kit whose mutation gate did not install one. mutants.mjs even names this
+      # fix in its own comments — "a missing dependency, not a missing test... the one-line
+      # fix (start Docker / install Chrome)" — and then never installed Chrome.
+      #
+      # A gate that proves "the suite can still fail" is worth nothing if it proves it about
+      # an environment nobody else runs.
+      - uses: browser-actions/setup-chrome@v1
+        id: chrome
       - name: break it on purpose — every canary must die
         run: node scripts/mutants.mjs
+        env:
+          IRIS_CHROME: ${{ steps.chrome.outputs.chrome-path }}
 
   look:
     runs-on: ubuntu-latest
