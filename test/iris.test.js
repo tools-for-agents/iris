@@ -70,6 +70,15 @@ test('a control you can click but cannot Tab to is flagged; a reachable one is n
     'role=option inside a role=listbox is driven by the combobox — arrow keys, not Tab. Never flagged.');
   assert.ok(!uc.some((v) => /#slider|#check/.test(v.selector)),
     'a native <input type=range>/checkbox is keyboard-accessible with no tabindex — never flagged (recall’s budget slider was a false positive)');
+  // 🔑 IT GATES. This sat at `medium` for months — a real a11y defect that printed and failed
+  // nothing, which is how iris shipped four unreachable rows in its OWN reader and exited 0. The
+  // promotion was deferred each time on a good reason (it would redden ghio, which could not be
+  // audited) and both reasons expired: ghio audits clean, and every gated surface in the kit —
+  // 60 of them across 7 repos, read out of the CI logs, where `medium` already prints — is clean.
+  // A severity is a promise about what happens next. Pin it, or it drifts back the first time
+  // somebody wants a red build to go green.
+  assert.ok(uc.every((v) => v.severity === 'high'), 'a control a keyboard cannot reach FAILS the build');
+  assert.equal(run.summary.passed, false, 'and the run does not pass while one is on the page');
 });
 
 // A PHONE THAT REPORTS A DESKTOP POINTER IS NOT A PHONE.

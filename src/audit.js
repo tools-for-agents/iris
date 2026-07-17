@@ -422,8 +422,25 @@ export function auditPage(opts) {
     // on the element itself would match a role=button div and wrongly skip it. Any tabindex at all
     // (even -1, a roving/managed-focus widget) counts as "the author handled focus" — fire only
     // when there is NONE. This is cortex's header stat (Cycle 97) and its inline .wl links:
-    // mouse-only, sighted-only. `medium` — a real a11y defect, but not "the page is visibly broken",
-    // so it does not (yet) gate the build. Checked before the size-oriented guards below, since a
+    // mouse-only, sighted-only.
+    //
+    // 🔑 `high`, AND IT GATES. It said `medium` and "does not (yet) gate the build" for months, and
+    // the deferral was reasonable each time it was re-read: promoting it would redden every
+    // iris@main consumer, including the ghio landing page, which could not be audited from here.
+    // Both reasons expired. ghio audits clean now (0 findings, live). And every gated surface in
+    // the kit was swept from the CI logs themselves — the honest instrument, because `medium`
+    // PRINTS today, so the logs already say what `high` would fail on: 60 surfaces across 7 repos,
+    // plus ghio. Zero. Nobody has to fix anything for this to turn on; it only holds the line.
+    //
+    // The audit that deferred it last time said "all 7 repos audit 0" too — and had been taken on
+    // gates that were not yet seeded, i.e. on empty pages, which cannot contain an unreachable
+    // control any more than an empty room can. This one was taken on the pages CI actually renders,
+    // with their doors opened.
+    //
+    // What made it safe to raise anything to `high` was fixing the OTHER `high` first: tap-target
+    // fired at random on compliant markup (the eye photographing a transition it had started), and
+    // a gating severity is only worth having if it means something every time. Checked before the
+    // size-oriented guards below, since a
     // LARGE control is just as unreachable as a small one; visibility is its own condition.
     // EVERY native form control is keyboard-focusable, not just the ones `inputTarget` counts as tap
     // targets: a <input type=range> slider and a <input type=checkbox> take arrow/space keys and focus
@@ -451,7 +468,7 @@ export function auditPage(opts) {
         && !(el.parentElement && el.parentElement.closest('button, a, select, [role="button"]'))) {
       const role = el.getAttribute('role');
       const how = el.hasAttribute('onclick') ? 'an onclick handler' : role === 'button' ? 'role="button"' : 'cursor:pointer';
-      add('unreachable-control', 'medium', el,
+      add('unreachable-control', 'high', el,
         `looks clickable (${how}) but is not keyboard-reachable — no tabindex, and not a native <button>/<a>, `
         + `so a keyboard user cannot Tab to it and a screen reader will not announce it as a control. `
         + `Add tabindex="0"${role ? '' : ' + role="button"'} and an Enter/Space handler.`);
