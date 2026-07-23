@@ -97,6 +97,11 @@
   .verdict.pass { border-color:color-mix(in srgb, var(--ok) 45%, transparent); background:color-mix(in srgb, var(--ok) 8%, transparent); }
   .verdict.fail { border-color:color-mix(in srgb, var(--bad) 45%, transparent); background:color-mix(in srgb, var(--bad) 8%, transparent); }
   .verdict .big { font-size:14px; font-weight:600; }
+  /* The target is often an absolute path or URL — one long unbreakable string. As a flex item its
+     default min-width is its min-content (the whole path), so it can't shrink and shoved the whole
+     page 157px past a phone viewport. min-width:0 lets it shrink; overflow-wrap:anywhere lets the
+     path break only when it must. iris found this on its own dashboard — the eye, on the eye. */
+  .verdict .tgt { min-width:0; overflow-wrap:anywhere; }
   .verdict .pass-t { color:var(--ok); } .verdict .fail-t { color:var(--bad); }
   .verdict .sp { margin-left: auto; display:flex; flex-wrap:wrap; gap: 8px; }
   .pill { font-family:var(--mono); font-size:12px; padding: 2px 8px; border-radius:999px; border:1px solid var(--line-2); color:var(--muted); }
@@ -439,7 +444,7 @@ function show(r) {
   $('#view').innerHTML = `
     <div class="verdict ${s.passed ? 'pass' : 'fail'}">
       <span class="big ${s.passed ? 'pass-t' : 'fail-t'}">${s.passed ? '✓ nothing broken' : '✗ ' + (s.high || 0) + ' to fix'}</span>
-      <span style="color:var(--muted)">${esc(r.target)}</span>
+      <span class="tgt" style="color:var(--muted)">${esc(r.target)}</span>
       <span class="sp">
         ${metrics}
         ${s.high ? `<span class="pill high">${s.high} high</span>` : ''}
