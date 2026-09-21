@@ -50,6 +50,35 @@ async function waitForCdp(port, timeoutMs = 12000) {
 // ── One page, driven ─────────────────────────────────────────────────────────
 // Wraps a CDP websocket: send(method) → result, plus the two event streams we
 // actually care about (page load, and everything the page logged or threw).
+// 🔑 THE SCRUB LIVES OUT HERE SO A TEST CAN KILL IT WITHOUT A BROWSER.
+//
+// It used to be three lines inside forceStates, and the only thing guarding it was an integration
+// test that renders a real file:// page and asserts the console came back clean. That test — and
+// the mutants canary aimed at it — can only fail where Chrome actually LOGS "Unsafe attempt to
+// load URL file:". It does here. It does not on the Chromium CI installs, where the canary
+// SURVIVED two runs in a row while dying locally every time: a guard aimed at a line whose effect
+// the environment decides.
+//
+// So the decision is a pure function over a list of console entries. The integration test still
+// proves the wiring where the browser provides the condition; this is what proves the scalpel,
+// everywhere, including the machines that never make the cut.
+//
+// It stays a scalpel: only an error, only this exact signature, and only about a file: URL. The
+// same message from an http:// page is the page's own bug and must survive.
+export function scrubOwnFileErrors(entries, from = 0) {
+  let removed = 0;
+  for (let i = entries.length - 1; i >= from; i--) {
+    const e = entries[i];
+    if (e.level === 'error'
+      && /Unsafe attempt to load URL file:/.test(e.text)
+      && (!e.url || String(e.url).startsWith('file:'))) {
+      entries.splice(i, 1);
+      removed++;
+    }
+  }
+  return removed;
+}
+
 class Page {
   constructor(ws) {
     this.ws = ws;
@@ -346,14 +375,15 @@ class Page {
     // So: note where the log is, enable, and drop ONLY an error that is (a) new, (b) exactly this
     // signature, and (c) about the page's own file: URL. A real cross-origin error from the page,
     // or this one on http://, still counts — this is a scalpel, not a blanket.
+    //
+    // 🔑 AND COUNT WHAT IT REMOVED, because a clean console afterwards is TWO different facts:
+    // "the scrub worked" and "there was nothing to scrub". They are indistinguishable from the
+    // outside, so the test that guards this has no way to tell a working scalpel from a Chrome
+    // build that never made the cut — and a canary aimed at the splice below can quietly stop
+    // dying without anything going red. A pass has to mean something, so the number travels out.
     const before = this.console.length;
     await this.send('CSS.enable');
-    const mine = (e) => e.level === 'error'
-      && /Unsafe attempt to load URL file:/.test(e.text)
-      && (!e.url || String(e.url).startsWith('file:'));
-    for (let i = this.console.length - 1; i >= before; i--) {
-      if (mine(this.console[i])) this.console.splice(i, 1);
-    }
+    this.scrubbedOwn = (this.scrubbedOwn || 0) + scrubOwnFileErrors(this.console, before);
     const { root } = await this.send('DOM.getDocument', { depth: -1 });
     const landed = [];
     for (const selector of selectors) {

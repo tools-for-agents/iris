@@ -159,6 +159,19 @@ iris was *right*. Every DOM check passed. And the page was still broken, because
 
 A page with no canvas gets the plain verdict — it is not lectured about a problem it does not have. This is the same refusal as `input-unproven`: **declining is not a failure. Guessing is.**
 
+The same rule turned on the eye itself. `--hover` needs Chrome's CSS agent, and enabling it makes
+Chrome fetch a `file://` page's own stylesheets — a cross-origin violation it then logs. iris fails
+a build on console errors, so it removes that one error, and only that one: same message from an
+`http://` page is the page's bug and survives. What guarded the removal was a test that renders a
+real local page and checks the console came back clean — **which can only fail on a Chrome that
+logs it.** The canary aimed at that line died locally on every attempt and SURVIVED two CI runs in
+a row, because the Chromium installed there never made the cut. A clean console was two different
+facts, and nothing could tell them apart.
+
+So the decision is a plain function over a list of console entries now, and the proof lives where
+it can always be made — no browser required. A guard whose teeth the environment decides is the
+same shape as a guard aimed at the copy that never runs.
+
 And it is why `iris_look` hands the **actual PNG** back to the model as an MCP image block, rather than a paragraph about it. The report is what a machine can measure. The picture is what is left.
 
 ## Looking at one thing

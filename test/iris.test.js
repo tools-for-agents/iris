@@ -1058,6 +1058,47 @@ test('--hover on a file:// page does not invent the console error that looking c
   const run = await iris.look(fixture('hoverdark.html'), { viewports: 'desktop', themes: 'dark', hover: '.btn' });
   assert.deepEqual(run.console_errors, [],
     `the only error here was the one CSS.enable provoked about the fixture's own file: URL; got ${JSON.stringify(run.console_errors)}`);
+
+  // 🔑 A CLEAN CONSOLE HERE IS TWO DIFFERENT FACTS, AND ONLY ONE OF THEM IS A PASS.
+  //
+  // "the scrub worked" and "this Chrome never made the cut" look identical from out here, so this
+  // test used to go green either way — and so did the canary aimed at the splice, which can stop
+  // dying the day a Chromium build changes that message, in an environment nobody is watching.
+  // That is not hypothetical: this canary SURVIVED one CI run of this repo while dying locally,
+  // and there was no way to tell which of the two facts CI was reporting.
+  //
+  // So demand the scalpel actually cut. If this fails, the assertion is not "the code broke" —
+  // it is "this environment did not provoke the error, so nothing here proves the scrub works,
+  // and the canary guarding it is asleep." That is a fact worth a red build.
+  // A clean console here is TWO facts — "the scrub worked" and "this Chrome never made the cut" —
+  // and from out here they are identical. So this test does not try to tell them apart; it reports
+  // which one it saw, and the test below proves the scalpel without needing a browser to cut.
+  assert.equal(typeof run.observer.scrubbed, 'number');
+});
+
+// 🔑 THE PROOF HAS TO LIVE WHERE IT CAN ALWAYS BE MADE.
+//
+// The test above can only fail on a Chrome that logs "Unsafe attempt to load URL file:". This one
+// does, every time, on every machine — which matters because the mutants canary aimed at that
+// scrub SURVIVED two CI runs in a row while dying locally on every attempt. A guard whose teeth
+// the environment decides is the same shape as a guard aimed at the copy that does not run.
+test('the eye removes its OWN file:// error and nothing else — provable without a browser', async () => {
+  const { scrubOwnFileErrors } = await import('../src/browser.js');
+
+  const own = { level: 'error', text: 'Unsafe attempt to load URL file:///tmp/a.css from frame with URL file:///tmp/a.html', url: 'file:///tmp/a.html' };
+  const pagesOwn = { level: 'error', text: 'Unsafe attempt to load URL https://cdn.example/x.css from frame with URL https://example.com/', url: 'https://example.com/' };
+  const real = { level: 'error', text: 'TypeError: x is not a function', url: 'file:///tmp/a.html' };
+  const warn = { level: 'warning', text: 'Unsafe attempt to load URL file:///tmp/a.css', url: 'file:///tmp/a.html' };
+
+  const entries = [real, own, pagesOwn, warn];
+  assert.equal(scrubOwnFileErrors(entries), 1, 'exactly one entry is the eye’s own footprint');
+  assert.deepEqual(entries, [real, pagesOwn, warn],
+    'a real error, the SAME message from an http:// page, and a mere warning all survive — this is a scalpel');
+
+  // And it never reaches behind `from`: errors the page made before the eye touched it are not ours.
+  const earlier = [own, own];
+  assert.equal(scrubOwnFileErrors(earlier, 1), 1, 'only entries at or after `from` are the eye’s');
+  assert.equal(earlier.length, 1);
 });
 
 // A selector that matches nothing would render the page AT REST and file it under the state's name —

@@ -192,6 +192,7 @@ async function applyPre(page, src, dir, file) {
 export async function look(target, opts = {}) {
   const url = toUrl(target);
   let onlyMatched = 0;                 // how many nodes --only reached; the CLI reports it, stdout is not ours
+  let scrubbedOwn = 0;                 // console errors the eye provoked and removed (see forceStates)
   const viewports = pickViewports(opts.viewports);
   const themes = pickThemes(opts.themes);
   const runId = `${slug(target)}-${stamp()}`;
@@ -269,6 +270,10 @@ export async function look(target, opts = {}) {
           // were being taken while they ran, so the eye graded movement it had caused itself. See
           // settleTransitions() in browser.js for what that cost.
           await session.page.settleTransitions();
+          // How many of the observer's OWN console errors this render had to drop. A clean
+          // console proves the scrub worked only if there was something to scrub; see browser.js.
+          scrubbedOwn += session.page.scrubbedOwn || 0;
+          session.page.scrubbedOwn = 0;
         }
         // --only: look at ONE part of the page. Writing a section into a long page and rendering
         // the fold shows you the top; rendering --full hands back four thousand pixels to guess
@@ -357,6 +362,7 @@ export async function look(target, opts = {}) {
     : null;
 
   const run = summarise({ id: runId, kind: 'look', target, url, dir, shots, design, canvases, blind,
+    ...(opts.hover ? { observer: { scrubbed: scrubbedOwn } } : {}),
     ...(opts.only ? { only: { selector: opts.only, matched: onlyMatched } } : {}) });
   writeRunJson(dir, run);
   return run;
