@@ -191,6 +191,7 @@ async function applyPre(page, src, dir, file) {
 
 export async function look(target, opts = {}) {
   const url = toUrl(target);
+  let onlyMatched = 0;                 // how many nodes --only reached; the CLI reports it, stdout is not ours
   const viewports = pickViewports(opts.viewports);
   const themes = pickThemes(opts.themes);
   const runId = `${slug(target)}-${stamp()}`;
@@ -269,7 +270,25 @@ export async function look(target, opts = {}) {
           // settleTransitions() in browser.js for what that cost.
           await session.page.settleTransitions();
         }
-        const png = await session.page.screenshot({ fullPage: !!opts.full });
+        // --only: look at ONE part of the page. Writing a section into a long page and rendering
+        // the fold shows you the top; rendering --full hands back four thousand pixels to guess
+        // your way down. Both are ways of not looking at the thing you changed.
+        let clip = null;
+        if (opts.only) {
+          const box = await session.page.boxOf(opts.only);
+          // Same rule --hover already learned the hard way: a selector that matched nothing must
+          // not quietly become a full-page render. That is a picture of something else, reported
+          // as a picture of what you asked for.
+          if (!box.n) throw new Error(`--only ${opts.only} matched NOTHING on ${vp}/${theme}, so there `
+            + 'was nothing to look at — and a full page returned in its place would be a picture of '
+            + 'something you did not ask about');
+          // NOT a console.log. stdout is the MCP protocol, and one stray line desyncs the
+          // client silently — the test that walks the server's import graph caught this exact
+          // slip. The count goes on the run, and the CLI is what prints.
+          onlyMatched = Math.max(onlyMatched, box.n);
+          clip = { x: box.x, y: box.y, width: box.width, height: box.height };
+        }
+        const png = await session.page.screenshot({ fullPage: !!opts.full, clip });
         const file = `${vp}-${theme}.png`;
         writeFileSync(join(dir, file), png);
         const a = opts.audit === false ? null
@@ -337,7 +356,8 @@ export async function look(target, opts = {}) {
     ? { canvases: inked.length, iframes: frames, hover_missed: missed, reasons }
     : null;
 
-  const run = summarise({ id: runId, kind: 'look', target, url, dir, shots, design, canvases, blind });
+  const run = summarise({ id: runId, kind: 'look', target, url, dir, shots, design, canvases, blind,
+    ...(opts.only ? { only: { selector: opts.only, matched: onlyMatched } } : {}) });
   writeRunJson(dir, run);
   return run;
 }
@@ -645,6 +665,11 @@ export function report(run, { limit = 25 } = {}) {
   // The gap is a gap whether or not something else failed. A page with one finding and an
   // unaudited iframe has not been checked, it has been partly checked, and the difference
   // is the whole point.
+  if (run.only) {
+    L.push(run.only.matched > 1
+      ? `   · --only ${run.only.selector} matched ${run.only.matched} elements — this is the first`
+      : `   · --only ${run.only.selector} — one element, not the page`);
+  }
   if (run.blind) {
     if (!s.passed) L.push('   …and I could not see all of it:');
     for (const r of run.blind.reasons) L.push(`     · ${r}.`);

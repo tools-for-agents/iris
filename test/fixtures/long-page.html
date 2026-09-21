@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Long page</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin:0; font:16px/1.5 system-ui, sans-serif; background:#fff; color:#111; }
+  @media (prefers-color-scheme: dark) { body { background:#111; color:#eee; } }
+  section { padding:24px; box-sizing:border-box; }
+  .filler { height:900px; background:#f3f3f3; }
+  @media (prefers-color-scheme: dark) { .filler { background:#1a1a1a; } }
+  #target { height:200px; background:#2563eb; color:#fff; }
+  .twin { height:120px; background:#7c3aed; color:#fff; }
+</style></head>
+<body>
+  <!-- Three screens of nothing, so the thing worth looking at is nowhere near the fold.
+       This is the shape that made --only necessary: rendering the fold shows the filler,
+       and rendering the whole page hands back thousands of pixels to guess your way down. -->
+  <section class="filler"><h1>Filler one</h1></section>
+  <section class="filler"><h1>Filler two</h1></section>
+  <section id="target"><h2>The section worth looking at</h2><p>Three screens down.</p></section>
+  <section class="filler"><h1>Filler three</h1></section>
+  <section class="twin">twin a</section>
+  <section class="twin">twin b</section>
+</body></html>

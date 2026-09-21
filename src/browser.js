@@ -389,12 +389,27 @@ class Page {
     return landed;
   }
 
-  async screenshot({ fullPage = false } = {}) {
+  async screenshot({ fullPage = false, clip = null } = {}) {
     const r = await this.send('Page.captureScreenshot', {
       format: 'png',
-      captureBeyondViewport: fullPage,
+      captureBeyondViewport: fullPage || !!clip,   // a clip below the fold is beyond the viewport
+      ...(clip ? { clip: { ...clip, scale: 1 } } : {}),
     });
     return Buffer.from(r.data, 'base64');
+  }
+
+  // The page-absolute box of the first element matching `selector`, plus how many matched.
+  // Page-absolute, not viewport-relative: a section three screens down has a negative top in
+  // viewport coordinates, and a clip taken from that shows the wrong part of the page entirely.
+  async boxOf(selector, pad = 16) {
+    return this.evaluate(({ sel, pad: p }) => {
+      const all = document.querySelectorAll(sel);
+      if (!all.length) return { n: 0 };
+      const r = all[0].getBoundingClientRect();
+      const x = Math.max(0, r.left + window.scrollX - p);
+      const y = Math.max(0, r.top + window.scrollY - p);
+      return { n: all.length, x, y, width: Math.max(1, r.width + p * 2), height: Math.max(1, r.height + p * 2) };
+    }, { sel: selector, pad });
   }
 
   async key(text, { type = 'keyDown' } = {}) {

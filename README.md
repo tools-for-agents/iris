@@ -161,6 +161,33 @@ A page with no canvas gets the plain verdict — it is not lectured about a prob
 
 And it is why `iris_look` hands the **actual PNG** back to the model as an MCP image block, rather than a paragraph about it. The report is what a machine can measure. The picture is what is left.
 
+## Looking at one thing
+
+A page is long and the thing you changed is three screens down. Rendering the fold shows you the
+top of a page you did not touch; rendering `--full` hands back four thousand pixels to scroll and
+crop your way through. Both are ways of not looking at the thing you changed.
+
+```bash
+iris look http://localhost:8080 --only "#pricing"
+```
+
+`--only <selector>` scrolls it into view and frames **that element**, with a little padding, at
+every viewport and theme. The page is still loaded, still settled, still audited — only the
+picture is cropped to what you asked about.
+
+It refuses a selector that matched nothing:
+
+```
+iris: --only #pricng matched NOTHING on desktop/dark, so there was nothing to look at —
+      and a full page returned in its place would be a picture of something you did not ask about
+```
+
+That refusal is the whole point of the flag. A silent fall back to the whole page would hand you a
+picture of somewhere else and let you read it as a picture of your section — the same lie as
+auditing an empty room, which `--hover` had to learn the hard way. When a selector matches several,
+it frames the first **and says so**, because a picture of one card read as a picture of the row is
+the same mistake wearing a smaller hat.
+
 ## For the agent (MCP)
 
 `iris_look` returns **the actual images** alongside the report, so the model sees its own output.

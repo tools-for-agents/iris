@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import * as iris from './core.js';
 
 const [, , cmd, ...rest] = process.argv;
-const VALUE = new Set(['--viewports', '--themes', '--seconds', '--frames', '--keys', '--limit', '--port', '--wait', '--tokens', '--name', '-k', '--pre', '--pre-file', '--boot', '--hover']);
+const VALUE = new Set(['--viewports', '--themes', '--seconds', '--frames', '--keys', '--limit', '--port', '--wait', '--tokens', '--name', '-k', '--pre', '--pre-file', '--boot', '--hover', '--only']);
 const positionals = []; const flags = {};
 for (let i = 0; i < rest.length; i++) {
   const a = rest[i];
@@ -30,6 +30,7 @@ try {
       // to reach was, until now, a state iris had never rendered — and so never checked.
       pre: flags['--pre-file'] ? readFileSync(flags['--pre-file'], 'utf8') : flags['--pre'],
       hover: flags['--hover'],
+      only: flags['--only'],
       // Runs BEFORE the page's own scripts — the only place to stand if you want to break
       // the API and see what the app draws when the server says no.
       boot: flags['--boot'],
@@ -104,6 +105,7 @@ try {
       --json                             the whole run as JSON
       --tokens <file>                    grade against a declared design system
       --hover <selector>                 force :hover on everything matching, then look
+      --only <selector>                  look at ONE element, not the whole page
       --strict                           ALSO fail on design drift, not just defects
                                          (auto-loads ./iris.tokens.json or ./tokens.json)
 

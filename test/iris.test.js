@@ -3,7 +3,7 @@
 // except the one thing iris is for: looking.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, existsSync, statSync } from 'node:fs';
+import { mkdtempSync, rmSync, existsSync, statSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -1288,4 +1288,47 @@ test('the render really is asking for reduced motion, not out-running the animat
     const matches = await s.page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
     assert.equal(matches, true, 'the page must SEE the preference — that is what turns its own animation off');
   } finally { await s.close(); }
+});
+
+// --only: look at ONE part of a page.
+//
+// Writing a section into a long page and rendering the fold shows you the top of it; rendering
+// --full hands back four thousand pixels to guess your way down. Both are ways of not looking at
+// the thing you changed — which is the one thing this tool exists to stop.
+test('--only frames one element, wherever it is on the page', needsChrome, async () => {
+  const whole = await iris.look(fixture('long-page.html'), { viewports: 'desktop', themes: 'light', full: true });
+  const only = await iris.look(fixture('long-page.html'), { viewports: 'desktop', themes: 'light', only: '#target' });
+
+  const size = (run) => statSync(join(run.dir, 'desktop-light.png')).size;
+  assert.ok(size(only) < size(whole) / 2,
+    `--only should hand back the element, not the page (${size(only)} vs ${size(whole)} bytes)`);
+
+  // And it must be THAT element: 200px tall plus the padding, not the 900px filler above it
+  // and not the whole 2000px document.
+  const png = readFileSync(join(only.dir, 'desktop-light.png'));
+  const height = png.readUInt32BE(20);          // IHDR height, bytes 20-23 of a PNG
+  assert.ok(height > 200 && height < 300, `framed the wrong thing — ${height}px tall`);
+});
+
+test('--only refuses a selector that matched nothing, instead of showing the page', needsChrome, async () => {
+  // The lesson --hover already learned: a near-miss reported as a pass is worse than no check.
+  // Silently falling back to the whole page would be a picture of something else, handed back
+  // as a picture of what was asked for.
+  await assert.rejects(
+    () => iris.look(fixture('long-page.html'), { viewports: 'desktop', themes: 'light', only: '#nope' }),
+    /matched NOTHING/,
+  );
+});
+
+test('--only says how many it matched, and frames the first', needsChrome, async () => {
+  const run = await iris.look(fixture('long-page.html'), { viewports: 'desktop', themes: 'light', only: '.twin' });
+  const png = readFileSync(join(run.dir, 'desktop-light.png'));
+  const height = png.readUInt32BE(20);
+  assert.ok(height > 120 && height < 220, `two .twin elements are 120px each; framed ${height}px — it took more than the first`);
+
+  // And it has to SAY it picked one of several, or a caller reads a picture of the first
+  // element as a picture of "the .twin section". The count travels on the run, not stdout:
+  // core.js is reachable from the MCP server, where a stray print desyncs the protocol.
+  assert.equal(run.only.matched, 2);
+  assert.match(summary(run), /--only \.twin matched 2 elements — this is the first/);
 });
