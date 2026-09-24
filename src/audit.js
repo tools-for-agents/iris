@@ -214,6 +214,40 @@ export function auditPage(opts) {
     return acc ? over(acc, white) : (c && c.a > 0 ? c : white);
   }
 
+  // ── prose crushed into a column too narrow to read ─────────────────────────────
+  // Nothing overflows, nothing clips, nothing overlaps — and every word is on its own line.
+  // recall's briefing rendered into a 48px track on EVERY phone for its whole life: two grid
+  // columns ("0 1fr") under a one-column area map. The hits were all in the DOM, the gate that
+  // rendered them passed, and iris said "✓ nothing broken", because no rule here asks whether
+  // text has room to be READ. Prose (40+ characters) at under a quarter of the viewport and
+  // 120px, wrapped into 6+ lines, is crushed. Reported once per crushed column.
+  //
+  // 🔑 RUN BEFORE visible(). The worst case is a ZERO-width track: its text still paints (every
+  // word overflows its 0px box, one per line), but `visible()` drops anything under 1px wide, so
+  // the element was never measured for anything — this rule, contrast, tiny type. "Invisible" by
+  // its box is not invisible on the screen.
+  const crushed = new Set();
+  function checkCrushed(el, r) {
+    if (r.height < 1 || r.width >= Math.min(120, W * 0.25)) return;
+    if (!ownText(el)) return;
+    const st = getComputedStyle(el);
+    if (st.visibility === 'hidden' || st.display === 'none' || +st.opacity === 0 || /vertical/.test(st.writingMode || '')) return;
+    const prose = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    const lh = parseFloat(st.lineHeight) || (parseFloat(st.fontSize) || 16) * 1.3;
+    if (prose.length < 40 || r.height / lh < 6) return;
+    let col = el;
+    for (let a = el.parentElement; a && a !== document.body; a = a.parentElement) {
+      if (a.getBoundingClientRect().width >= Math.min(160, W * 0.3)) break;
+      col = a;
+    }
+    if (crushed.has(col)) return;
+    crushed.add(col);
+    const cw = Math.round(col.getBoundingClientRect().width);
+    add('crushed-text', 'high', col, `${prose.length} characters of text in a ${cw}px-wide column of a ${W}px viewport — `
+      + `${Math.round(r.height / lh)} lines, a word or two each. Nothing overflows, and nobody can read it. `
+      + 'Look for a grid track or flex item that collapsed (a column template that does not match its area map, a min-width:0 with nothing to fill it).');
+  }
+
   const visible = (el, r) => {
     if (r.width < 1 || r.height < 1) return false;
     const s = getComputedStyle(el);
@@ -270,6 +304,7 @@ export function auditPage(opts) {
 
   for (const el of all) {
     const r = el.getBoundingClientRect();
+    checkCrushed(el, r);
     if (!visible(el, r)) continue;
     const st = getComputedStyle(el);
 

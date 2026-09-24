@@ -1373,3 +1373,15 @@ test('--only says how many it matched, and frames the first', needsChrome, async
   assert.equal(run.only.matched, 2);
   assert.match(summary(run), /--only \.twin matched 2 elements — this is the first/);
 });
+
+test('crushed-text: prose in a column too narrow to read is broken, even though nothing overflows', needsChrome, async () => {
+  const run = await iris.look(fixture('crushed.html'), { viewports: 'phone,desktop', themes: 'dark', tokens: false });
+  const crushed = rule(run, 'crushed-text');
+  const onPhone = crushed.filter((v) => v.viewport === 'phone');
+  assert.equal(onPhone.length, 1, `one report for the crushed column, not one per paragraph: ${JSON.stringify(crushed)}`);
+  assert.equal(onPhone[0].severity, 'high');
+  assert.match(onPhone[0].detail, /Nothing overflows, and nobody can read it/);
+  assert.ok(!run.violations.some((v) => v.viewport === 'phone' && (v.rule === 'clipped' || v.rule === 'page-overflow')), 'the old rules really are blind to it');
+  assert.ok(!crushed.some((v) => v.viewport === 'desktop'), 'the same page with room to read is not crushed');
+  assert.ok(!crushed.some((v) => /nav/.test(v.selector)), 'a narrow sidebar of SHORT labels is a sidebar, not crushed prose');
+});

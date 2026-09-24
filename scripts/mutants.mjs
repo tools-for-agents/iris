@@ -24,6 +24,18 @@ import { spawnSync } from 'node:child_process';
 
 const CANARIES = [
   {
+    why: 'crushed text is measured BEFORE the visibility filter — a zero-width track still paints its words, and visible() drops it',
+    file: 'src/audit.js',
+    find: '    checkCrushed(el, r);\n    if (!visible(el, r)) continue;',
+    into: '    if (!visible(el, r)) continue;\n    checkCrushed(el, r);',
+  },
+  {
+    why: 'a crushed column is reported ONCE, not once per paragraph in it',
+    file: 'src/audit.js',
+    find: '    if (crushed.has(col)) return;',
+    into: '    void 0;',
+  },
+  {
     why: 'the walk descends into shadow roots — iris audited the empty host and blessed a broken app',
     file: 'src/audit.js',
     find: '      if (el.shadowRoot) deepAll(el.shadowRoot, out);',
